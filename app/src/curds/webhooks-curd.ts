@@ -1,0 +1,47 @@
+import { Injectable } from '@nestjs/common';
+import { Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Webhook } from '../entities/webhooks.entity';
+
+@Injectable()
+export class WebhooksCurd {
+    constructor(
+        @InjectRepository(Webhook) private readonly webhookRepo: Repository<Webhook>
+    ) { }
+
+    async add(uid: string, url: string): Promise<Webhook> {
+        // TODO: Check same uid and url;
+        const repo = new Webhook();
+        repo.uid = uid;
+        repo.url = url;
+
+        const saveRepo = await this.webhookRepo.save(repo);
+        return saveRepo;
+    }
+
+    async del(id: string): Promise<void> {
+        const findRepo = await this.webhookRepo.findOne({ id });
+        if (findRepo) {
+            await this.webhookRepo.remove(findRepo);
+        }
+    }
+
+    async delAll(uid: string): Promise<void> {
+        const findRepos = await this.webhookRepo.find({ uid });
+        if (findRepos) {
+            await this.webhookRepo.remove(findRepos);
+        }
+    }
+
+    async findById(id: string): Promise<Webhook> {
+        const findRepo = await this.webhookRepo.findOne({ id });
+
+        return findRepo;
+    }
+
+    async findByUid(uid: string): Promise<Webhook[]> {
+        const findRepos = await this.webhookRepo.find({ uid });
+
+        return findRepos || [];
+    }
+}
