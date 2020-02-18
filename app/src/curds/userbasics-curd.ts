@@ -10,7 +10,7 @@ export class UserbasicsCurd {
     ) { }
 
     async add(uid: string, username: string, password: string): Promise<UserBasic> {
-        const checkUid = await this.getByUID(uid);
+        const checkUid = await this.getByUid(uid);
         if (checkUid) {
             throw new Error("");
         }

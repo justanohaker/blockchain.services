@@ -1,9 +1,7 @@
 import { Controller, Post, Body, Get, Param, Put, Delete } from '@nestjs/common';
 import { RegisterDto } from './dtos/register.dto';
 import { LoginDto } from './dtos/login.dto';
-import { IdDto, IdAndCoinTypeDto } from './dtos/query.dto';
 import { ApiTags } from '@nestjs/swagger';
-import { AddWebHooksDto } from './dtos/webhooks.dto';
 
 @ApiTags('user')
 @Controller('user')
@@ -15,6 +13,7 @@ export class UserController {
         return registerDto;
     }
 
+    // jwt auth
     @Post('login')
     async login(@Body() loginDto: LoginDto) {
         return loginDto;
