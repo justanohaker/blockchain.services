@@ -33,14 +33,26 @@ export class WebhooksCurd {
         }
     }
 
+    async find(cond: any): Promise<Webhook[]> {
+        const findRepos = await this.webhookRepo.find(cond);
+
+        return findRepos || [];
+    }
+
+    async findOne(cond: any): Promise<Webhook> {
+        const findRepo = await this.webhookRepo.findOne(cond);
+
+        return findRepo || null;
+    }
+
     async findById(id: string): Promise<Webhook> {
-        const findRepo = await this.webhookRepo.findOne({ id });
+        const findRepo = await this.findOne({ id });
 
         return findRepo;
     }
 
     async findByUid(uid: string): Promise<Webhook[]> {
-        const findRepos = await this.webhookRepo.find({ uid });
+        const findRepos = await this.find({ uid });
 
         return findRepos || [];
     }

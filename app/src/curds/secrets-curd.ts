@@ -24,8 +24,18 @@ export class SecretsCurd {
         return saveResult;
     }
 
+    async find(cond: any): Promise<Secret[]> {
+        const findRepos = await this.secretRepo.find(cond);
+        return findRepos || [];
+    }
+
+    async findOne(cond: any): Promise<Secret> {
+        const findRepo = await this.secretRepo.findOne(cond);
+        return findRepo || null;
+    }
+
     async findByUid(uid: string): Promise<Secret> {
-        const findRepo = await this.secretRepo.findOne({ uid });
+        const findRepo = await this.findOne({ uid });
 
         return findRepo;
     }

@@ -24,8 +24,20 @@ export class EthaccountsCurd {
         return saveResult;
     }
 
+    async find(cond: any): Promise<ETHAccount[]> {
+        const findRepos = await this.ethaccountRepo.find(cond);
+
+        return findRepos || [];
+    }
+
+    async findOne(cond: any): Promise<ETHAccount> {
+        const findRepo = await this.ethaccountRepo.findOne(cond);
+
+        return findRepo || null;
+    }
+
     async findByUid(uid: string): Promise<ETHAccount> {
-        const findRepo = await this.ethaccountRepo.findOne({ uid });
+        const findRepo = await this.findOne({ uid });
 
         return findRepo;
     }

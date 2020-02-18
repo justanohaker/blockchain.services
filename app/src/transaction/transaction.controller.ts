@@ -22,7 +22,7 @@ export class TransactionController {
     }
 
     @Post('send')
-    async sendTr() {
+    async sendTransaction() {
 
     }
 }

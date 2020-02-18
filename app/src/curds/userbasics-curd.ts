@@ -47,7 +47,7 @@ export class UserbasicsCurd {
     }
 
     // specified
-    async getByUID(uid: string): Promise<UserBasic> {
+    async getByUid(uid: string): Promise<UserBasic> {
         const findRepo = await this.findOne({ uid });
 
         return findRepo;

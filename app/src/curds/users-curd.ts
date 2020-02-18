@@ -48,7 +48,7 @@ export class UsersCurd {
         @InjectRepository(User) private readonly userRepo: Repository<User>
     ) { }
 
-    async init(uid: string): Promise<User> {
+    async add(uid: string): Promise<User> {
         const checkUid = await this.userRepo.find({ uid });
         if (checkUid) {
             throw new Error("");
@@ -63,8 +63,20 @@ export class UsersCurd {
         return saveResult;
     }
 
+    async find(cond: any): Promise<User[]> {
+        const findRepos = await this.userRepo.find(cond);
+
+        return findRepos || [];
+    }
+
+    async findOne(cond: any): Promise<User> {
+        const findRepo = await this.userRepo.findOne(cond);
+
+        return findRepo || null;
+    }
+
     async findByUid(uid: string): Promise<User> {
-        const findRepo = await this.userRepo.findOne({ uid });
+        const findRepo = await this.findOne({ uid });
 
         return findRepo;
     }

@@ -24,8 +24,20 @@ export class BtcaccountsCurd {
         return saveResult;
     }
 
+    async find(cond: any): Promise<BTCAccount[]> {
+        const findRepos = await this.btcaccountRepo.find(cond);
+
+        return findRepos || [];
+    }
+
+    async findOne(cond: any): Promise<BTCAccount> {
+        const findRepo = await this.btcaccountRepo.findOne(cond);
+
+        return findRepo || null;
+    }
+
     async findByUid(uid: string): Promise<BTCAccount> {
-        const findRepo = await this.btcaccountRepo.findOne({ uid });
+        const findRepo = await this.findOne({ uid });
 
         return findRepo;
     }
