@@ -19,18 +19,22 @@ export class WebhooksCurd {
         return saveRepo;
     }
 
-    async del(id: string): Promise<void> {
+    async del(id: string): Promise<boolean> {
         const findRepo = await this.webhookRepo.findOne({ id });
         if (findRepo) {
             await this.webhookRepo.remove(findRepo);
+            return true;
         }
+        return false;
     }
 
-    async delAll(uid: string): Promise<void> {
+    async delAll(uid: string): Promise<boolean> {
         const findRepos = await this.webhookRepo.find({ uid });
         if (findRepos) {
             await this.webhookRepo.remove(findRepos);
+            return true;
         }
+        return false;
     }
 
     async find(cond: any): Promise<Webhook[]> {

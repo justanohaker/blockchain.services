@@ -9,76 +9,74 @@ export const enum Platform {
     BITCOIN_TESTNET = "m/44'/1'/0'/0/0"
 }
 
-export class bipHelper {
-    static newMnemonic(strength: number = 128): string {
-        return generateMnemonic(strength)
-    }
+export async function bipNewMnemonic(strength: number = 128): Promise<string> {
+    return generateMnemonic(strength)
+}
 
-    static mnemonicToSeed(
-        mnemonic: string,
-        password: string = ''
-    ): Buffer {
-        return mnemonicToSeedSync(mnemonic, password)
-    }
+export async function bipMnemonicToSeed(
+    mnemonic: string,
+    password: string = ''
+): Promise<Buffer> {
+    return mnemonicToSeedSync(mnemonic, password)
+}
 
-    static privpubFromSeed(
-        seed: Buffer,
-        platform: Platform,
-        network: Network = networks.bitcoin
-    ) {
-        const b32 = fromSeed(seed, network);
+export async function bipPrivpubFromSeed(
+    seed: Buffer,
+    platform: Platform,
+    network: Network = networks.bitcoin
+) {
+    const b32 = fromSeed(seed, network);
 
-        const deriveB32 = b32.derivePath(platform);
-        const priv = deriveB32.privateKey.toString("hex");
-        const pub = deriveB32.publicKey.toString("hex");
-        const xpriv = deriveB32.toBase58();
-        const xpub = deriveB32.neutered().toBase58();
-        const wif = deriveB32.toWIF();
+    const deriveB32 = b32.derivePath(platform);
+    const priv = deriveB32.privateKey.toString("hex");
+    const pub = deriveB32.publicKey.toString("hex");
+    const xpriv = deriveB32.toBase58();
+    const xpub = deriveB32.neutered().toBase58();
+    const wif = deriveB32.toWIF();
 
-        return {
-            priv,
-            pub,
-            xpriv,
-            xpub,
-            wif
-        };
-    }
+    return {
+        priv,
+        pub,
+        xpriv,
+        xpub,
+        wif
+    };
+}
 
-    static privpubFromMnemonic(
-        mnemonic: string,
-        platform: Platform,
-        password: string = '',
-        network: Network = networks.bitcoin
-    ) {
-        const seed = bipHelper.mnemonicToSeed(mnemonic, password);
-        return bipHelper.privpubFromSeed(seed, platform, network);
-    }
+export async function bipPrivpubFromMnemonic(
+    mnemonic: string,
+    platform: Platform,
+    password: string = '',
+    network: Network = networks.bitcoin
+) {
+    const seed = await bipMnemonicToSeed(mnemonic, password);
+    return await bipPrivpubFromSeed(seed, platform, network);
+}
 
-    static getAddressFromXPub(platform: Platform, xpub: string) {
-        const b32 = fromBase58(xpub);
-        const pubkey = b32.publicKey;
+export async function bipGetAddressFromXPub(platform: Platform, xpub: string) {
+    const b32 = fromBase58(xpub);
+    const pubkey = b32.publicKey;
 
-        switch (platform) {
-            case Platform.BITCOIN: {
-                const p2pkh = payments.p2pkh({ pubkey, network: networks.bitcoin });
-                return p2pkh.address;
-            }
-
-            case Platform.ETHEREUM: {
-                const ethereumPubkey = importPublic(pubkey);
-                const addr = publicToAddress(ethereumPubkey);
-                return addr.toString('hex');
-            }
-
-            case Platform.BITCOIN_TESTNET: {
-                const p2pkh = payments.p2pkh({ pubkey, network: networks.testnet });
-                return p2pkh.address;
-            }
-
-            default:
-                break;
+    switch (platform) {
+        case Platform.BITCOIN: {
+            const p2pkh = payments.p2pkh({ pubkey, network: networks.bitcoin });
+            return p2pkh.address;
         }
 
-        throw new Error();
+        case Platform.ETHEREUM: {
+            const ethereumPubkey = importPublic(pubkey);
+            const addr = publicToAddress(ethereumPubkey);
+            return '0x' + addr.toString('hex');
+        }
+
+        case Platform.BITCOIN_TESTNET: {
+            const p2pkh = payments.p2pkh({ pubkey, network: networks.testnet });
+            return p2pkh.address;
+        }
+
+        default:
+            break;
     }
+
+    throw new Error();
 }

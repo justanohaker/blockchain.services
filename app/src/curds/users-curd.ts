@@ -49,7 +49,7 @@ export class UsersCurd {
     ) { }
 
     async add(uid: string): Promise<User> {
-        const checkUid = await this.userRepo.find({ uid });
+        const checkUid = await this.findOne({ uid });
         if (checkUid) {
             throw new Error("");
         }
