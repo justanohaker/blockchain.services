@@ -11,14 +11,14 @@ import { BTCAccount } from './entities/btc_accounts.entity';
 import { BTCTransaction } from './entities/btc_trs.entity';
 import { ETHAccount } from './entities/eth_accounts.entity';
 import { ETHTransaction } from './entities/eth_trs.entity';
-// import { CommonModule } from './curds/common.module';
-import { CurdsModule } from './curds/curds.module';
+
+import { AppConfig } from './config/app.config';
 
 @Module({
   imports: [
     TypeOrmModule.forRoot({
       type: "sqlite",
-      database: "app.sqlite",
+      database: AppConfig.Sqlite_Db_Name,
       synchronize: true,
       entities: [
         UserBasic,
@@ -33,10 +33,9 @@ import { CurdsModule } from './curds/curds.module';
     }),
     UserModule,
     TransactionModule,
-    CurdsModule,
-    // CommonModule
   ],
   controllers: [],
   providers: [],
+  exports: []
 })
 export class AppModule { }

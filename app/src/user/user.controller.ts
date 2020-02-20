@@ -7,7 +7,6 @@ import {
     UseGuards,
     Request,
     Param,
-    HttpException,
     HttpStatus,
     HttpCode,
 } from '@nestjs/common';
@@ -21,6 +20,7 @@ import { LoginUser, LoginUserDto } from '../libs/decorators/login-user.decorator
 import { AddWebHookDto } from './dtos/webhook.dto';
 import { respSuccess, respFailure, RespErrorCode } from 'src/libs/responseHelper';
 import { DespositCoinDto } from './dtos/deposit.dto';
+import { FindUUIDIdParamDto } from './dtos/common.dto';
 
 @ApiTags('user')
 @Controller('user')
@@ -109,10 +109,11 @@ export class UserController {
     @UseGuards(AuthGuard('jwt'))
     async GetWebHook(
         @LoginUser() user: LoginUserDto,
-        @Param('id') id: string
+        @Param() findUuidIdParamDto: FindUUIDIdParamDto
     ) {
         try {
             const { uid } = user;
+            const { id } = findUuidIdParamDto;
 
             const webhooks = await this.userService.listWebHooks(uid, { id });
             if (webhooks.length <= 0) {
@@ -173,15 +174,16 @@ export class UserController {
     @HttpCode(HttpStatus.OK)
     async deleteWebHook(
         @LoginUser() user: LoginUserDto,
-        @Param('id') id: string
+        @Param() findUuidIdParamDto: FindUUIDIdParamDto
     ) {
         try {
             const { uid } = user;
+            const { id } = findUuidIdParamDto;
 
             const result = await this.userService.delWebHook(uid, id);
 
             return result
-                ? respSuccess({})
+                ? respSuccess({ id })
                 : respFailure(RespErrorCode.NOT_FOUND, 'WebhookId not found!');
         } catch (error) {
             return respFailure(

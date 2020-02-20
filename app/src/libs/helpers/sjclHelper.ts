@@ -1,13 +1,12 @@
 import { encrypt, decrypt } from 'sjcl';
-
-const PASSWORD_FOR_TEST = "E!@#$%^NTANMO_blockchain.service)(*&^%";
+import { AppConfig } from '../../config/app.config';
 
 export async function sjclEncrypt(plaintext: string) {
-    const sjclResult = encrypt(PASSWORD_FOR_TEST, plaintext);
+    const sjclResult = encrypt(AppConfig.Sjcl_Password, plaintext);
 
     return `${sjclResult}`;
 }
 
 export async function sjclDecrypt(encrypted: string) {
-    return decrypt(PASSWORD_FOR_TEST, encrypted);
+    return decrypt(AppConfig.Sjcl_Password, encrypted);
 }

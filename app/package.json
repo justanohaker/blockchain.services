@@ -31,6 +31,8 @@
     "bip32": "^2.0.5",
     "bip39": "^3.0.2",
     "bitcoinjs-lib": "^5.1.7",
+    "class-transformer": "^0.2.3",
+    "class-validator": "^0.11.0",
     "ethereumjs-util": "^6.2.0",
     "nanoid": "^2.1.11",
     "passport": "^0.4.1",
