@@ -1,5 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import * as helmet from 'helmet';
+import * as compression from 'compression';
 import { AppModule } from './app.module';
 import { ValidationPipe, HttpException, HttpStatus } from '@nestjs/common';
 import { ValidationError } from 'class-validator';
@@ -8,6 +10,8 @@ import { respFailure, RespErrorCode } from './libs/responseHelper';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableCors();
+  app.use(helmet());
+  app.use(compression());
   app.useGlobalPipes(new ValidationPipe({
     transform: true,
     whitelist: true,
