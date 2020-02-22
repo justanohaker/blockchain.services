@@ -3,10 +3,10 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { LoginUser, LoginUserDto } from 'src/libs/decorators/login-user.decorator';
 import { CoinDto } from './dtos/coin.dto';
-import { TransactionService, TransactionMode } from './transaction.service';
+import { TransactionService } from './transaction.service';
 import { respFailure, RespErrorCode, respSuccess } from 'src/libs/responseHelper';
 import { TransferDto, DespositDto } from './dtos/transfer.dto';
-import { CoinType } from 'src/libs/common/coin-define';
+import { TransactionRole } from '../libs/libs.types';
 
 @ApiTags('transaction')
 @Controller('transaction')
@@ -26,8 +26,19 @@ export class TransactionController {
         try {
             const { uid } = user;
             const { coin } = coinDto;
-            const result = await this.trsService.getTransactions(uid, coin);
-            return respSuccess(result);
+            const result = await this.trsService.getTransactions(
+                uid,
+                coin,
+                TransactionRole.ALL
+            );
+            if (result.success) {
+                return respSuccess(result.data);
+            } else {
+                return respFailure(
+                    RespErrorCode.BAD_REQUEST,
+                    result.error
+                );
+            }
         } catch (error) {
             return respFailure(
                 RespErrorCode.INTERNAL_SERVER_ERROR,
@@ -50,9 +61,16 @@ export class TransactionController {
             const result = await this.trsService.getTransactions(
                 uid,
                 coin,
-                TransactionMode.WITHDRAW
+                TransactionRole.SENDER
             );
-            return respSuccess(result);
+            if (result.success) {
+                return respSuccess(result.data);
+            } else {
+                return respFailure(
+                    RespErrorCode.BAD_REQUEST,
+                    result.error
+                );
+            }
         } catch (error) {
             return respFailure(
                 RespErrorCode.INTERNAL_SERVER_ERROR,
@@ -76,9 +94,16 @@ export class TransactionController {
             const result = await this.trsService.getTransactions(
                 uid,
                 coin,
-                TransactionMode.DESPOSIT
+                TransactionRole.RECIPIENT
             );
-            return respSuccess(result);
+            if (result.success) {
+                return respSuccess(result.data);
+            } else {
+                return respFailure(
+                    RespErrorCode.BAD_REQUEST,
+                    result.error
+                );
+            }
         } catch (error) {
             return respFailure(
                 RespErrorCode.INTERNAL_SERVER_ERROR,

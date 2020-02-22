@@ -20,8 +20,22 @@ export class BtcaccountsCurd {
         repo.priv = priv;
         repo.pub = pub;
         repo.address = address;
+        repo.balance = '0';
         const saveResult = await this.btcaccountRepo.save(repo);
         return saveResult;
+    }
+
+    async updateBalanceByAddress(address: string, newBalance: string): Promise<BTCAccount> {
+        const findRepo = await this.btcaccountRepo.findOne({ address });
+        if (!findRepo) {
+            return null;
+        }
+
+        await this.btcaccountRepo.update({ address }, { balance: newBalance });
+
+        // return await this.btcaccountRepo.findOne({address});
+        findRepo.balance = newBalance;
+        return findRepo;
     }
 
     async find(cond: any): Promise<BTCAccount[]> {

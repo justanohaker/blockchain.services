@@ -9,10 +9,13 @@ import { Secret } from './entities/secrets.entity';
 import { Webhook } from './entities/webhooks.entity';
 import { BTCAccount } from './entities/btc_accounts.entity';
 import { BTCTransaction } from './entities/btc_trs.entity';
+import { BTCTransactionIndex } from './entities/btc_trs_index.entity';
 import { ETHAccount } from './entities/eth_accounts.entity';
 import { ETHTransaction } from './entities/eth_trs.entity';
 
 import { AppConfig } from './config/app.config';
+import { BlockchainModule } from './blockchain/blockchain.module';
+import { ProviderModule } from './provider/provider.module';
 
 @Module({
   imports: [
@@ -27,12 +30,15 @@ import { AppConfig } from './config/app.config';
         Webhook,
         BTCAccount,
         BTCTransaction,
+        BTCTransactionIndex,
         ETHAccount,
         ETHTransaction
       ]
     }),
     UserModule,
     TransactionModule,
+    ProviderModule,
+    BlockchainModule,
   ],
   controllers: [],
   providers: [],

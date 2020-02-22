@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsIn, IsNumberString, IsBoolean } from 'class-validator';
+import { IsString, IsIn, IsNumberString } from 'class-validator';
 import { CoinType } from 'src/libs/common/coin-define';
 
 export class TransferDto {

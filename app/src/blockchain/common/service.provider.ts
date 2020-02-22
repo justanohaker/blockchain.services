@@ -25,7 +25,7 @@ export interface IServiceProvider {
      * 当监控程序监控到一批不同的地址有余额变化时调用此回调
      * @param newBalances - 批量变量的账号信息
      */
-    onBatchBalancesChanged(newBalances: BalanceDef[]): Promise<void>;
+    // onBatchBalancesChanged(newBalances: BalanceDef[]): Promise<void>;
 
     /**
      * @note 回调

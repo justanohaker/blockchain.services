@@ -16,4 +16,7 @@ export class ETHAccount {
 
     @Column()
     address: string;
+
+    @Column()
+    balance: string;
 }

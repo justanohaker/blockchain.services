@@ -9,6 +9,7 @@ import { Secret } from '../entities/secrets.entity';
 import { BTCAccount } from '../entities/btc_accounts.entity';
 import { ETHAccount } from '../entities/eth_accounts.entity';
 import { BTCTransaction } from '../entities/btc_trs.entity';
+import { BTCTransactionIndex } from '../entities/btc_trs_index.entity';
 import { ETHTransaction } from '../entities/eth_trs.entity';
 
 // Curds
@@ -31,6 +32,7 @@ import { EthtransactionsCurd } from './ethtransactions-curd';
             BTCAccount,
             ETHAccount,
             BTCTransaction,
+            BTCTransactionIndex,
             ETHTransaction
         ])
     ],

@@ -20,6 +20,7 @@ export class EthaccountsCurd {
         repo.priv = priv;
         repo.pub = pub;
         repo.address = address;
+        repo.balance = '0';
         const saveResult = await this.ethaccountRepo.save(repo);
         return saveResult;
     }

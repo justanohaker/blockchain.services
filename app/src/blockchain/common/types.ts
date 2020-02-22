@@ -49,15 +49,16 @@ export type BalanceResp = {
 export class BitcoinTransaction {
     type: 'bitcoin';                // 比特币主网 - 标记
     sub: 'btc';                     // 比特币代币BTC - 标记
+    txId: string;                   // 交易Id
     blockHeight: number;            // 交易打包高度
-    blockTimes: number;             // 交易打包时间
+    blockTime: number;             // 交易打包时间
     vIns: BTCvIn[];                 // 交易发送者列表
     vOuts: BTCvOut[]                // 交易接收者列表
 }
 
 // BTC交易发送者与接收者定义
-type BTCvIn = { address: string; amount: string; };
-type BTCvOut = { address: string; amount: string; }
+export type BTCvIn = { address: string; amount: string; };
+export type BTCvOut = { address: string; amount: string; }
 
 /**
  * ETH交易结构定义，可以从ethereum获取交易后，填充此结构
@@ -66,6 +67,7 @@ type BTCvOut = { address: string; amount: string; }
 export class EthereumTransaction {
     type: 'ethereum';               // 以太坊主网 - 标记
     sub: 'eth';                     // 以太坊代币ETH - 标记
+    txId: string;                   // 交易Id
     blockHeight: number;            // 交易打包高度
     blockTime: number;              // 交易打包时间
     sender: string;                 // 交易发送者地址

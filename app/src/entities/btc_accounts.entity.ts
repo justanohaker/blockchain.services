@@ -16,4 +16,7 @@ export class BTCAccount {
 
     @Column()
     address: string;
+
+    @Column()
+    balance: string;
 }
