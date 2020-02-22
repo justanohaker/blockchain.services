@@ -16,6 +16,8 @@ import { ETHTransaction } from './entities/eth_trs.entity';
 import { AppConfig } from './config/app.config';
 import { BlockchainModule } from './blockchain/blockchain.module';
 import { ProviderModule } from './provider/provider.module';
+import { EthModule } from './blockchain/eth/eth.module';
+
 
 @Module({
   imports: [
@@ -36,6 +38,7 @@ import { ProviderModule } from './provider/provider.module';
       ]
     }),
     UserModule,
+    EthModule,
     TransactionModule,
     ProviderModule,
     BlockchainModule,

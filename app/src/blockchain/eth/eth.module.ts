@@ -4,7 +4,6 @@ import { EthService } from './eth.service';
 
 @Module({
   controllers: [EthController],
-  providers: [EthService],
-  exports: [EthService]
+  providers: [EthService]
 })
-export class EthModule { }
+export class EthModule {}

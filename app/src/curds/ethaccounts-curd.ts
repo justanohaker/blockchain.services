@@ -42,4 +42,9 @@ export class EthaccountsCurd {
 
         return findRepo;
     }
+    async findByAddresss(ids:string[]): Promise<ETHAccount[]> {
+        const l = await this.ethaccountRepo.createQueryBuilder("eth_accounts")
+             .where("eth_accounts.id IN (:...ids)", { ids }).getMany();
+        return l;
+    }
 }
