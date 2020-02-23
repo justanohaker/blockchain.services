@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
-import { RegisterDto } from './dtos/register.dto';
+import { RegisterDto, NewUserDto } from './dtos/register.dto';
 import { LoginDto } from './dtos/login.dto';
 import { UserService } from './user.service';
 import { UserBasic } from '../entities/user_basic.entity';
@@ -37,6 +37,22 @@ export class UserController {
             const { username, password } = registerDto;
             const registerResult = await this.userService.register(username, password);
             return respSuccess(registerResult);
+        } catch (error) {
+            return respFailure(
+                RespErrorCode.INTERNAL_SERVER_ERROR,
+                `${error}`
+            );
+        }
+    }
+
+    @ApiOperation({ summary: '登记、获取密码' })
+    @Post('new')
+    @HttpCode(HttpStatus.OK)
+    async newUserId(@Body() newUserDto: NewUserDto) {
+        try {
+            const { userId } = newUserDto;
+            const newUserResult = await this.userService.newUser(userId);
+            return respSuccess(newUserResult);
         } catch (error) {
             return respFailure(
                 RespErrorCode.INTERNAL_SERVER_ERROR,

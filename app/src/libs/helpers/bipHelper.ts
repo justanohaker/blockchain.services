@@ -53,6 +53,11 @@ export async function bipPrivpubFromMnemonic(
     return await bipPrivpubFromSeed(seed, platform, network);
 }
 
+export async function bipHexPrivFromxPriv(xpriv: string) {
+    const b32 = fromBase58(xpriv);
+    return b32.privateKey.toString('hex');
+}
+
 export async function bipGetAddressFromXPub(platform: Platform, xpub: string) {
     const b32 = fromBase58(xpub);
     const pubkey = b32.publicKey;

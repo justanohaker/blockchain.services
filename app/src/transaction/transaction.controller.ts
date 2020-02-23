@@ -1,4 +1,4 @@
-import { Controller, Get, Post, UseGuards, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, UseGuards, Param, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { LoginUser, LoginUserDto } from 'src/libs/decorators/login-user.decorator';
@@ -115,6 +115,7 @@ export class TransactionController {
     @ApiOperation({ summary: '转账' })
     @ApiBearerAuth()
     @Post('sendTo')
+    @HttpCode(HttpStatus.OK)
     @UseGuards(AuthGuard('jwt'))
     async sendTransaction(
         @LoginUser() user: LoginUserDto,
@@ -151,6 +152,7 @@ export class TransactionController {
     @ApiOperation({ summary: '提币' })
     @ApiBearerAuth()
     @Post('despositTo')
+    @HttpCode(HttpStatus.OK)
     @UseGuards(AuthGuard('jwt'))
     async desposit(
         @LoginUser() user: LoginUserDto,

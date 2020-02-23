@@ -6,6 +6,8 @@ import { LocalStrategy } from '../libs/strategies/auth/local.strategy';
 import { JwtStrategy } from '../libs/strategies/auth/jwt.strategy';
 import { CurdsModule } from '../curds/curds.module';
 import { AppConfig } from '../config/app.config';
+import { BtcProviderModule } from '../provider/btc-provider/btc-provider.module';
+import { EthProviderModule } from '../provider/eth-provider/eth-provider.module';
 
 
 @Module({
@@ -15,6 +17,8 @@ import { AppConfig } from '../config/app.config';
       secret: AppConfig.Jwt_Strategy_SecretOrKey,
       signOptions: { expiresIn: AppConfig.Jwt_Expired_In }
     }),
+    BtcProviderModule,
+    EthProviderModule
   ],
   providers: [UserService, LocalStrategy, JwtStrategy],
   controllers: [UserController]

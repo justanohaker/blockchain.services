@@ -9,6 +9,7 @@ import {
     Platform,
     bipGetAddressFromXPub
 } from '../libs/helpers/bipHelper';
+import { genpasswordGen } from '../libs/helpers/genpasswordHelper';
 import { CoinType } from '../libs/common/coin-define';
 
 import { UserbasicsCurd } from '../curds/userbasics-curd';
@@ -18,6 +19,8 @@ import { WebhooksCurd } from '../curds/webhooks-curd';
 import { BtcaccountsCurd } from '../curds/btcaccounts-curd';
 import { EthaccountsCurd } from '../curds/ethaccounts-curd';
 import { AddWebHookDto } from './dtos/webhook.dto';
+import { BtcProvider } from '../provider/btc-provider/btc.provider';
+import { EthProvider } from '../provider/eth-provider/eth.provider';
 
 @Injectable()
 export class UserService {
@@ -30,7 +33,10 @@ export class UserService {
         private readonly secretsCurd: SecretsCurd,
         private readonly webhooksCurd: WebhooksCurd,
         private readonly btcaccountsCurd: BtcaccountsCurd,
-        private readonly ethaccountsCurd: EthaccountsCurd
+        private readonly ethaccountsCurd: EthaccountsCurd,
+        private readonly btcProvider: BtcProvider,
+        private readonly ethProvider: EthProvider
+
     ) { }
 
     async register(userName: string, password: string) {
@@ -82,11 +88,75 @@ export class UserService {
                 ethPrivPub.xpub,
                 ethAddress
             );
+
+            // onUserChanged
+            await this.ethProvider.onUserChanged();
+            await this.btcProvider.onUserChanged();
         } catch (error) {
             this.logger.log(`Exception: ${error}`);
             throw error;
         }
         return { user_id: newUserId };
+    }
+
+    async newUser(userId: string) {
+        const newUserId = await nanoidGenUserId();
+        const newPassword = await genpasswordGen();
+        try {
+            const checkUserName = await this.hasUserName(userId);
+            if (checkUserName) {
+                throw new BadRequestException("UserName exists!!");
+            }
+            await this.userbasicsCurd.add(
+                newUserId,
+                userId,
+                await bcryptHash(newPassword)
+            );
+            // TODO: balance, secret, btc_account, eth_account
+            // init 
+            await this.usersCurd.add(newUserId);
+            // secret
+            const newSecret = await bipNewMnemonic();
+            await this.secretsCurd.add(newUserId, newSecret);
+            // btc account
+            const btcPrivPub = await bipPrivpubFromMnemonic(
+                newSecret,
+                Platform.BITCOIN
+            );
+            const btcAddress = await bipGetAddressFromXPub(
+                Platform.BITCOIN,
+                btcPrivPub.xpub
+            );
+            await this.btcaccountsCurd.add(
+                newUserId,
+                btcPrivPub.xpriv,
+                btcPrivPub.xpub,
+                btcAddress
+            );
+            // eth account
+            const ethPrivPub = await bipPrivpubFromMnemonic(
+                newSecret,
+                Platform.ETHEREUM,
+            );
+            const ethAddress = await bipGetAddressFromXPub(
+                Platform.ETHEREUM,
+                ethPrivPub.xpub
+            );
+            await this.ethaccountsCurd.add(
+                newUserId,
+                ethPrivPub.xpriv,
+                ethPrivPub.xpub,
+                ethAddress
+            );
+
+            // onUserChanged
+            await this.ethProvider.onUserChanged();
+            await this.btcProvider.onUserChanged();
+        } catch (error) {
+            this.logger.log(`Exception: ${error}`);
+            throw error;
+        }
+        return { user_id: newUserId, password: newPassword };
     }
 
     async login(userName: string, uid: string) {

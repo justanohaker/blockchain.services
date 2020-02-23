@@ -25,6 +25,18 @@ export class EthaccountsCurd {
         return saveResult;
     }
 
+    async updateBalanceByAddress(address: string, newBalance: string): Promise<ETHAccount> {
+        const findRepo = await this.ethaccountRepo.findOne({ address });
+        if (!findRepo) {
+            return null;
+        }
+
+        await this.ethaccountRepo.update({ address }, { balance: newBalance });
+        // return await this.ethaccountRepo.findOne({ address });
+        findRepo.balance = newBalance;
+        return findRepo;
+    }
+
     async find(cond: any): Promise<ETHAccount[]> {
         const findRepos = await this.ethaccountRepo.find(cond);
 
@@ -41,10 +53,5 @@ export class EthaccountsCurd {
         const findRepo = await this.findOne({ uid });
 
         return findRepo;
-    }
-    async findByAddresss(ids:string[]): Promise<ETHAccount[]> {
-        const l = await this.ethaccountRepo.createQueryBuilder("eth_accounts")
-             .where("eth_accounts.id IN (:...ids)", { ids }).getMany();
-        return l;
     }
 }

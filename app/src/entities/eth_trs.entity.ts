@@ -6,5 +6,20 @@ export class ETHTransaction {
     id: string;
 
     @Column()
-    uid: string;
+    txId: string;
+
+    @Column()
+    blockHeight: number;
+
+    @Column()
+    blockTime: number;
+
+    @Column()
+    sender: string;
+
+    @Column()
+    recipient: string;
+
+    @Column()
+    amount: string;
 }

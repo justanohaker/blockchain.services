@@ -59,6 +59,14 @@ export class BtctransactionsCurd {
         return await this.btcTrsRepo.findOne(cond);
     }
 
+    async findIndex(cond: any): Promise<BTCTransactionIndex[]> {
+        return await this.btcTrsIndexRepo.find(cond);
+    }
+
+    async findIndexOne(cond: any): Promise<BTCTransactionIndex> {
+        return await this.btcTrsIndexRepo.findOne(cond);
+    }
+
     async hasTxId(txId: string): Promise<boolean> {
         const findRepo = await this.findOne({ txId });
         return findRepo ? true : false;
