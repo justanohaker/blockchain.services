@@ -21,6 +21,7 @@ import { EthaccountsCurd } from '../curds/ethaccounts-curd';
 import { AddWebHookDto } from './dtos/webhook.dto';
 import { BtcProvider } from '../provider/btc-provider/btc.provider';
 import { EthProvider } from '../provider/eth-provider/eth.provider';
+import { networks } from 'bitcoinjs-lib';
 
 @Injectable()
 export class UserService {
@@ -61,10 +62,10 @@ export class UserService {
             // btc account
             const btcPrivPub = await bipPrivpubFromMnemonic(
                 newSecret,
-                Platform.BITCOIN
+                Platform.BITCOIN_TESTNET
             );
             const btcAddress = await bipGetAddressFromXPub(
-                Platform.BITCOIN,
+                Platform.BITCOIN_TESTNET,
                 btcPrivPub.xpub
             );
             await this.btcaccountsCurd.add(
@@ -121,10 +122,10 @@ export class UserService {
             // btc account
             const btcPrivPub = await bipPrivpubFromMnemonic(
                 newSecret,
-                Platform.BITCOIN
+                Platform.BITCOIN_TESTNET,
             );
             const btcAddress = await bipGetAddressFromXPub(
-                Platform.BITCOIN,
+                Platform.BITCOIN_TESTNET,
                 btcPrivPub.xpub
             );
             await this.btcaccountsCurd.add(

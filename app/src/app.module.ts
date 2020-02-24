@@ -17,6 +17,7 @@ import { AppConfig } from './config/app.config';
 import { BlockchainModule } from './blockchain/blockchain.module';
 import { ProviderModule } from './provider/provider.module';
 import { EthModule } from './blockchain/eth/eth.module';
+import { NotifierModule } from './notifier/notifier.module';
 
 
 @Module({
@@ -42,6 +43,7 @@ import { EthModule } from './blockchain/eth/eth.module';
     TransactionModule,
     ProviderModule,
     BlockchainModule,
+    NotifierModule,
   ],
   controllers: [],
   providers: [],

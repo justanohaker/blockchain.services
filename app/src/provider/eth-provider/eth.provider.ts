@@ -10,6 +10,7 @@ import { IUserChanger } from '../../libs/interfaces/iuser-changed.interface';
 import { EthaccountsCurd } from '../../curds/ethaccounts-curd';
 import { EthtransactionsCurd } from '../../curds/ethtransactions-curd';
 import { EthService } from '../../blockchain/eth/eth.service';
+import { NotifierService } from '../../notifier/notifier.service';
 
 @Injectable()
 export class EthProvider
@@ -20,7 +21,8 @@ export class EthProvider
     constructor(
         private readonly ethAccountCurd: EthaccountsCurd,
         private readonly ethTransactionCurd: EthtransactionsCurd,
-        private readonly ethService: EthService
+        private readonly ethService: EthService,
+        private readonly notifyService: NotifierService
     ) {
         // this._service = this.ethService;
         // this._service.setProvider(this);

@@ -1,5 +1,5 @@
 import { generateMnemonic, mnemonicToSeedSync } from 'bip39';
-import { fromSeed, fromBase58 } from 'bip32';
+import { fromSeed, fromBase58, BIP32Interface } from 'bip32';
 import { Network, networks, payments } from 'bitcoinjs-lib';
 import { importPublic, publicToAddress } from 'ethereumjs-util';
 
@@ -23,10 +23,15 @@ export async function bipMnemonicToSeed(
 export async function bipPrivpubFromSeed(
     seed: Buffer,
     platform: Platform,
-    network: Network = networks.bitcoin
 ) {
-    const b32 = fromSeed(seed, network);
+    let b32: BIP32Interface = null;
+    if (platform === Platform.BITCOIN_TESTNET) {
+        b32 = fromSeed(seed, networks.testnet);
+    } else {
+        b32 = fromSeed(seed, networks.bitcoin);
+    }
 
+    console.log('platform:', platform);
     const deriveB32 = b32.derivePath(platform);
     const priv = deriveB32.privateKey.toString("hex");
     const pub = deriveB32.publicKey.toString("hex");
@@ -47,20 +52,31 @@ export async function bipPrivpubFromMnemonic(
     mnemonic: string,
     platform: Platform,
     password: string = '',
-    network: Network = networks.bitcoin
 ) {
     const seed = await bipMnemonicToSeed(mnemonic, password);
-    return await bipPrivpubFromSeed(seed, platform, network);
+    return await bipPrivpubFromSeed(seed, platform);
 }
 
-export async function bipHexPrivFromxPriv(xpriv: string) {
-    const b32 = fromBase58(xpriv);
-    return b32.privateKey.toString('hex');
+export async function bipHexPrivFromxPriv(xpriv: string, platform: Platform) {
+    if (platform === Platform.BITCOIN_TESTNET) {
+        const b32 = fromBase58(xpriv, networks.testnet);
+        return b32.privateKey.toString('hex');
+    } else {
+        const b32 = fromBase58(xpriv, networks.bitcoin);
+        return b32.privateKey.toString('hex');
+    }
 }
 
 export async function bipGetAddressFromXPub(platform: Platform, xpub: string) {
-    const b32 = fromBase58(xpub);
-    const pubkey = b32.publicKey;
+    let pubkey: Buffer = null;
+    if (platform === Platform.BITCOIN_TESTNET) {
+        const b32 = fromBase58(xpub, networks.testnet);
+        pubkey = b32.publicKey;
+    } else {
+        const b32 = fromBase58(xpub, networks.bitcoin);
+        pubkey = b32.publicKey;
+    }
+    console.log('bipGetAddressFromXpub:', platform);
 
     switch (platform) {
         case Platform.BITCOIN: {

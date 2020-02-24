@@ -184,4 +184,9 @@ export class TransactionController {
             );
         }
     }
+
+    @Post('notification')
+    async onWebHookNotification(@Body() body: any) {
+        console.log('transaction/notification body:', body);
+    }
 }

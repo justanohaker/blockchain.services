@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { In } from 'typeorm';
 import { BtcaccountsCurd } from '../../curds/btcaccounts-curd';
 import { BtctransactionsCurd } from '../../curds/btctransactions-curd';
 import { BtcService } from '../../blockchain/btc/btc.service';
@@ -10,7 +11,7 @@ import { TransactionRole } from '../../libs/libs.types';
 import { IServiceGetter } from '../../libs/interfaces/iservice-getter.interface';
 import { ITransactionGetter } from '../../libs/interfaces/itransaction-getter.interface';
 import { IUserChanger } from '../../libs/interfaces/iuser-changed.interface';
-import { In } from 'typeorm';
+import { NotifierService } from '../../notifier/notifier.service';
 
 @Injectable()
 export class BtcProvider
@@ -21,7 +22,8 @@ export class BtcProvider
     constructor(
         private readonly btcAccountCurd: BtcaccountsCurd,
         private readonly btcTransactionCurd: BtctransactionsCurd,
-        private readonly btcService: BtcService
+        private readonly btcService: BtcService,
+        private readonly notifyService: NotifierService
     ) {
         // this._service = this.btcService as IService;
         // this._service.setProvider(this);

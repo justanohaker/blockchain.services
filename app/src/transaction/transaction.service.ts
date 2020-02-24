@@ -11,7 +11,7 @@ import { TransactionRole } from '../libs/libs.types';
 import { IServiceGetter } from '../libs/interfaces/iservice-getter.interface';
 import { ITransactionGetter } from '../libs/interfaces/itransaction-getter.interface';
 import { addressIsBitcoin, addressIsEthereum } from '../libs/helpers/addressHelper';
-import { bipHexPrivFromxPriv } from '../libs/helpers/bipHelper';
+import { bipHexPrivFromxPriv, Platform } from '../libs/helpers/bipHelper';
 
 export type GetTransactionResult = {
     success: boolean;
@@ -84,7 +84,7 @@ export class TransactionService {
                         throw new Error(`User(${uid}) not exists!`);
                     }
                     keyPair = {
-                        privateKey: await bipHexPrivFromxPriv(findRepo.priv),
+                        privateKey: await bipHexPrivFromxPriv(findRepo.priv, Platform.BITCOIN_TESTNET),
                         address: findRepo.address
                     };
                     console.log('bitcon:', JSON.stringify(keyPair));
@@ -102,7 +102,7 @@ export class TransactionService {
                         throw new Error(`User(${uid}) not exists!`);
                     }
                     keyPair = {
-                        privateKey: await bipHexPrivFromxPriv(findRepo.priv),
+                        privateKey: await bipHexPrivFromxPriv(findRepo.priv, Platform.ETHEREUM),
                         address: findRepo.address
                     };
                     console.log('ethereum:', JSON.stringify(keyPair));
