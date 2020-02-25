@@ -7,7 +7,6 @@ import { ECPair, networks, Psbt } from 'bitcoinjs-lib';
 import axios from 'axios';
 import Client = require('bitcoin-core');
 const WebSocket = require('websocket').w3cwebsocket;
-// import WebSocket
 
 const client = new Client({
     host: '47.95.3.22',
