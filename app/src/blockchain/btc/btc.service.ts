@@ -6,7 +6,7 @@ import { Buffer } from 'buffer';
 import { ECPair, networks, Psbt } from 'bitcoinjs-lib';
 import axios from 'axios';
 import Client = require('bitcoin-core');
-const WebSocket = require('websocket').w3cwebsocket;
+import { w3cwebsocket } from 'websocket';
 
 const client = new Client({
     host: '47.95.3.22',
@@ -238,7 +238,7 @@ export class BtcService extends IService {
         return { success: true, result };
     }
 
-    async testBtcNode(){
+    async testBtcNode() {
         // let b = await client.getNewAddress()
         // let b = await client.getAddressInfo('33Yfjnqhr6F3vZEmj1iMAcAXN5Y2mL2Fi4')
         let b = await client.getBalance()
@@ -246,16 +246,23 @@ export class BtcService extends IService {
     }
 
     async testWs() {
-        var ws = new WebSocket("wss://socket.blockcypher.com/v1/btc/test3");
-        ws.onopen = event=> {
+        var ws = new w3cwebsocket("wss://socket.blockcypher.com/v1/btc/test3");
+        ws.onopen = () => {
             console.log('WebSocket Connected');
-            ws.send(JSON.stringify({ event: "unconfirmed-tx" }));
+            if (ws.readyState === ws.OPEN) {
+                ws.send(JSON.stringify({ event: "new-block" }));
+            }
+            console.log(ws.readyState);
         }
-        ws.onmessage = event=>{
-            var tx = JSON.parse(event.data);
+        ws.onmessage = event => {
+            console.log(event.data)
+            var tx = JSON.parse(event.data.toString());
             console.log(tx)
-        } 
-        ws.onclose = ()=> {
+        }
+        ws.onerror = error => {
+            console.log(error)
+        }
+        ws.onclose = () => {
             console.log('WebSocket Closed');
         };
     }
