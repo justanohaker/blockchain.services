@@ -17,6 +17,7 @@ import { AppConfig } from './config/app.config';
 import { BlockchainModule } from './blockchain/blockchain.module';
 import { ProviderModule } from './provider/provider.module';
 import { EthModule } from './blockchain/eth/eth.module';
+import { BtcModule } from './blockchain/btc/btc.module';
 import { NotifierModule } from './notifier/notifier.module';
 
 
@@ -40,6 +41,7 @@ import { NotifierModule } from './notifier/notifier.module';
     }),
     UserModule,
     EthModule,
+    BtcModule,
     TransactionModule,
     ProviderModule,
     BlockchainModule,
