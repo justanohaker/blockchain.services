@@ -1,18 +1,27 @@
 import { BaseAction } from './base.action';
+import { BtcBalanceNotification } from '../../types/bitcoin-balance.notification';
 
 export class BtcBalanceAction extends BaseAction {
+    private btcBalanceData: BtcBalanceNotification;
     constructor(data: any) {
         super();
+
+        this.btcBalanceData = data as BtcBalanceNotification;
     }
 
     async getNotificationURL(): Promise<string> {
-        return 'http://192.168.3.15:3000/transaction/notification';
+        return this.btcBalanceData.url;
     }
 
     async getNotificationBody(): Promise<Object> {
         return {
-            type: 'bitcoin',
-            content: 'this is a notification test'
+            type: 'balance',
+            platform: 'bitcoin',
+            content: {
+                uid: this.btcBalanceData.uid,
+                address: this.btcBalanceData.address,
+                balance: this.btcBalanceData.balance,
+            },
         };
     }
 }

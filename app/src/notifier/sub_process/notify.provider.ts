@@ -22,6 +22,8 @@ export class NotifyProvider {
             return;
         }
 
+        console.log('[NotifyMessage]:', message.type);
+
         switch (message.type) {
             case NotifyType.BtcTransaction: {
                 const newAction = new BtcTransactionAction(message.data);

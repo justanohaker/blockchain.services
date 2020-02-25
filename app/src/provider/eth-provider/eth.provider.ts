@@ -9,6 +9,7 @@ import { ITransactionGetter } from '../../libs/interfaces/itransaction-getter.in
 import { IUserChanger } from '../../libs/interfaces/iuser-changed.interface';
 import { EthaccountsCurd } from '../../curds/ethaccounts-curd';
 import { EthtransactionsCurd } from '../../curds/ethtransactions-curd';
+import { WebhooksCurd } from '../../curds/webhooks-curd';
 import { EthService } from '../../blockchain/eth/eth.service';
 import { NotifierService } from '../../notifier/notifier.service';
 
@@ -21,6 +22,7 @@ export class EthProvider
     constructor(
         private readonly ethAccountCurd: EthaccountsCurd,
         private readonly ethTransactionCurd: EthtransactionsCurd,
+        private readonly webhooksCurd: WebhooksCurd,
         private readonly ethService: EthService,
         private readonly notifyService: NotifierService
     ) {
@@ -135,7 +137,20 @@ export class EthProvider
         for (const a of newBalances) {
             const { address, balance } = a;
             await this.ethAccountCurd.updateBalanceByAddress(address, balance);
-            // maybe notify???
+            // notify
+            const notificationProps = await this.getNotificationProp(address);
+            if (!notificationProps) {
+                continue;
+            }
+            for (const url of notificationProps.urls) {
+                this.notifyService.addEthBalanceNotification({
+                    url,
+                    uid: notificationProps.uid,
+                    address,
+                    balance
+                });
+            }
+            // end notify
         }
     }
 
@@ -154,7 +169,7 @@ export class EthProvider
                 recipient,
                 amount
             } = t;
-            await this.ethTransactionCurd.add(
+            const addResult = await this.ethTransactionCurd.add(
                 txId,
                 blockHeight,
                 blockTime,
@@ -162,7 +177,60 @@ export class EthProvider
                 recipient,
                 amount
             );
-            //TODO: maybe notify???
+            if (!addResult) continue;
+            // notify
+            const senderNotificationRepos = await this.getNotificationProp(sender);
+            if (senderNotificationRepos) {
+                for (const url of senderNotificationRepos.urls) {
+                    this.notifyService.addEthTransactionNotification({
+                        uid: senderNotificationRepos.uid,
+                        txId,
+                        url,
+                        blockHeight,
+                        blockTime,
+                        sender,
+                        recipient,
+                        amount
+                    });
+                }
+            }
+            const recipientNotificationRepos = await this.getNotificationProp(recipient);
+            if (recipientNotificationRepos) {
+                for (const url of recipientNotificationRepos.urls) {
+                    this.notifyService.addEthTransactionNotification({
+                        uid: recipientNotificationRepos.uid,
+                        txId,
+                        url,
+                        blockHeight,
+                        blockTime,
+                        sender,
+                        recipient,
+                        amount
+                    });
+                }
+            }
+            // end notify
         }
+    }
+
+    private async getNotificationProp(address: string): Promise<{ urls: string[]; uid: string }> {
+        const findUidRepo = await this.ethAccountCurd.findOne({ address });
+        if (!findUidRepo) {
+            return null;
+        }
+        const findWebhookRepos = await this.webhooksCurd.findByUid(findUidRepo.uid);
+        if (!findWebhookRepos) {
+            return null;
+        }
+
+        const result = {
+            uid: findUidRepo.uid,
+            urls: []
+        };
+        for (const webhook of findWebhookRepos) {
+            result.urls.push(webhook.url);
+        }
+
+        return result;
     }
 }

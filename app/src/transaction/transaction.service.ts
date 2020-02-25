@@ -26,7 +26,57 @@ export class TransactionService {
         private readonly ethProvider: EthProvider,
         private readonly btcAccountCurd: BtcaccountsCurd,
         private readonly ethAccountCurd: EthaccountsCurd
-    ) { }
+    ) {
+
+        /*
+        setTimeout(() => {
+            //
+            this.btcProvider.onBalanceChanged([{
+                address: 'mpGPRT5MZuvKok2Bnttf4poLQHn1AQ3yen',
+                balance: '100000000'
+            }]);
+
+            this.btcProvider.onBalanceChanged([{
+                address: 'mvBJ6ntnd5H47XrbA9tFY4ktmb4HXzaX8i',
+                balance: '2000000000'
+            }]);
+
+            this.btcProvider.onBalanceChanged([{
+                address: 'n3NHmHSoAM6pqvG94SoXAhqXiassUyRxBP',
+                balance: '4000000'
+            }]);
+
+            this.btcProvider.onNewTransaction([{
+                type: 'bitcoin',
+                sub: 'btc',
+                txId: 'user1 - user2',
+                blockHeight: 1,
+                blockTime: 1010,
+                vIns: [{ address: 'mpGPRT5MZuvKok2Bnttf4poLQHn1AQ3yen', amount: '100' }],
+                vOuts: [{ address: 'mvBJ6ntnd5H47XrbA9tFY4ktmb4HXzaX8i', amount: '200' }]
+            }]);
+            this.btcProvider.onNewTransaction([{
+                type: 'bitcoin',
+                sub: 'btc',
+                txId: 'user1 - outter',
+                blockHeight: 2,
+                blockTime: 2,
+                vIns: [{ address: 'mpGPRT5MZuvKok2Bnttf4poLQHn1AQ3yen', amount: '300' }],
+                vOuts: [{ address: 'n3NHmHSoAM6pqvG94SoXAhqXiassUyRxBP', amount: '400' }]
+            }]);
+            this.btcProvider.onNewTransaction([{
+                type: 'bitcoin',
+                sub: 'btc',
+                txId: 'outter - user2',
+                blockHeight: 3,
+                blockTime: 10,
+                vIns: [{ address: 'n3NHmHSoAM6pqvG94SoXAhqXiassUyRxBP', amount: '500' }],
+                vOuts: [{ address: 'mvBJ6ntnd5H47XrbA9tFY4ktmb4HXzaX8i', amount: '600' }]
+            }])
+        }, 10 * 1000);
+        // */
+
+    }
 
     async getTransactions(
         uid: string,

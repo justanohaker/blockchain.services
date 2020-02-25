@@ -18,6 +18,9 @@ export class BaseAction {
                 break;
             }
         }
+        if (!notifyResult) {
+            console.log('[NotifyFailure]: ', notifyUrl, JSON.stringify(notifyData, null, 2));
+        }
 
         return notifyResult;
     }

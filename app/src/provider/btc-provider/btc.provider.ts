@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { In } from 'typeorm';
 import { BtcaccountsCurd } from '../../curds/btcaccounts-curd';
 import { BtctransactionsCurd } from '../../curds/btctransactions-curd';
+import { WebhooksCurd } from '../../curds/webhooks-curd';
 import { BtcService } from '../../blockchain/btc/btc.service';
 import { IServiceProvider } from '../../blockchain/common/service.provider';
 import { IService } from '../../blockchain/common/service.interface';
@@ -22,6 +23,7 @@ export class BtcProvider
     constructor(
         private readonly btcAccountCurd: BtcaccountsCurd,
         private readonly btcTransactionCurd: BtctransactionsCurd,
+        private readonly webhookCurd: WebhooksCurd,
         private readonly btcService: BtcService,
         private readonly notifyService: NotifierService
     ) {
@@ -139,7 +141,21 @@ export class BtcProvider
         for (const a of newBalances) {
             const { address, balance } = a;
             await this.btcAccountCurd.updateBalanceByAddress(address, balance);
-            //TODO: maybe notify???
+
+            // notify
+            const notificationProps = await this.getNotificationProp(address);
+            if (!notificationProps) {
+                continue;
+            }
+            for (const url of notificationProps.urls) {
+                this.notifyService.addBtcBalanceNotification({
+                    url,
+                    uid: notificationProps.uid,
+                    address,
+                    balance
+                });
+            }
+            // end notify
         }
     }
 
@@ -157,14 +173,71 @@ export class BtcProvider
                 vIns,
                 vOuts
             } = t;
-            await this.btcTransactionCurd.add(
+            const addResult = await this.btcTransactionCurd.add(
                 txId,
                 blockHeight,
                 blockTime,
                 vIns,
                 vOuts
             );
-            //TODO: maybeNotify??
+            if (!addResult) continue;
+            // notify
+            for (const vIn of vIns) {
+                const notificationProps = await this.getNotificationProp(vIn.address);
+                if (!notificationProps) {
+                    continue;
+                }
+
+                for (const url of notificationProps.urls) {
+                    this.notifyService.addBtcTransactionNotification({
+                        uid: notificationProps.uid,
+                        url,
+                        txId,
+                        blockHeight,
+                        blockTime,
+                        vIns,
+                        vOuts
+                    });
+                }
+            }
+            for (const vOut of vOuts) {
+                const notificationProps = await this.getNotificationProp(vOut.address);
+                if (!notificationProps) {
+                    continue;
+                }
+                for (const url of notificationProps.urls) {
+                    this.notifyService.addBtcTransactionNotification({
+                        uid: notificationProps.uid,
+                        url,
+                        txId,
+                        blockHeight,
+                        blockTime,
+                        vIns,
+                        vOuts
+                    });
+                }
+            }
+            // end notify
         }
+    }
+
+    private async getNotificationProp(address: string): Promise<{ urls: string[], uid: string }> {
+        const findUidRepo = await this.btcAccountCurd.findOne({ address });
+        if (!findUidRepo) {
+            return null;
+        }
+        const findWebhookRepos = await this.webhookCurd.findByUid(findUidRepo.uid);
+        if (!findWebhookRepos) {
+            return null;
+        }
+
+        const result = {
+            uid: findUidRepo.uid,
+            urls: []
+        };
+        for (const webhook of findWebhookRepos) {
+            result.urls.push(webhook.url);
+        }
+        return result;
     }
 }

@@ -1,18 +1,31 @@
 import { BaseAction } from './base.action';
+import { EthTransactionNotification } from '../../types/ethereum-transaction.notification';
 
 export class EthTransactionAction extends BaseAction {
+    private ethTransactionData: EthTransactionNotification;
     constructor(data: any) {
         super();
+
+        this.ethTransactionData = data as EthTransactionNotification;
     }
 
     async getNotificationURL(): Promise<string> {
-        return 'http://192.168.3.15:3000/transaction/notification';
+        return this.ethTransactionData.url;
     }
 
     async getNotificationBody(): Promise<Object> {
         return {
-            type: 'bitcoin',
-            content: 'this is a notification test'
+            type: 'transaction',
+            platform: 'ethereum',
+            content: {
+                uid: this.ethTransactionData.uid,
+                txId: this.ethTransactionData.txId,
+                blockHeight: this.ethTransactionData.blockHeight,
+                blockTime: this.ethTransactionData.blockTime,
+                sender: this.ethTransactionData.sender,
+                recipient: this.ethTransactionData.recipient,
+                amount: this.ethTransactionData.amount,
+            },
         };
     }
 }

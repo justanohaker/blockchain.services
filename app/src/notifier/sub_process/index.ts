@@ -4,7 +4,6 @@ async function main() {
     const notifyProvider = new NotifyProvider();
 
     process.on('message', (message: any, sendHandle: any) => {
-        console.log('sub process message:', JSON.stringify(message));
         notifyProvider.addMessage(message);
     });
 

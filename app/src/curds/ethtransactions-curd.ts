@@ -17,10 +17,10 @@ export class EthtransactionsCurd {
         sender: string,
         recipient: string,
         amount: string
-    ) {
+    ): Promise<boolean> {
         const checkTxId = await this.hasTxId(txId);
         if (checkTxId) {
-            return;
+            return false;
         }
 
         const repo = new ETHTransaction();
@@ -33,6 +33,7 @@ export class EthtransactionsCurd {
         await this.ethTrsRepo.save(repo);
 
         // TODO: maybe return something??
+        return true;
     }
 
     async find(cond: any): Promise<ETHTransaction[]> {

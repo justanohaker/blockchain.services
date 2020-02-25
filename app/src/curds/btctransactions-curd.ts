@@ -19,10 +19,10 @@ export class BtctransactionsCurd {
         blockTime: number,
         vIns: Array<BTCvIn>,
         vOuts: Array<BTCvOut>
-    ) {
+    ): Promise<boolean> {
         const checkTxId = await this.hasTxId(txId);
         if (checkTxId) {
-            return;
+            return false;
         }
 
         const repo = new BTCTransaction();
@@ -49,6 +49,7 @@ export class BtctransactionsCurd {
             await this.btcTrsIndexRepo.save(index);
         }
         // TODO: maybe return somethings??
+        return true;
     }
 
     async find(cond: any): Promise<BTCTransaction[]> {
