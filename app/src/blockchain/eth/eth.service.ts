@@ -1,45 +1,100 @@
-import { Injectable,Logger } from '@nestjs/common';
-import { NewWalletDto, sendCoinDto, balanceDto,transactionDto} from './eth.dto';
-import { BalanceDef,BalanceResp,TransferDef,TransferResp} from '../common/types';
-import { IService} from '../common/service.interface';
-import { IServiceProvider} from '../common/service.provider';
-import { ethers,utils } from 'ethers';
+import { Injectable, Logger } from '@nestjs/common';
+import { NewWalletDto, sendCoinDto, balanceDto, transactionDto } from './eth.dto';
+import { BalanceDef, BalanceResp, TransferDef, TransferResp } from '../common/types';
+import { IService } from '../common/service.interface';
+import { IServiceProvider } from '../common/service.provider';
+import { ethers, utils } from 'ethers';
 import { EthaccountsCurd } from '../../curds/ethaccounts-curd';
-
+const async= require('async');
+// var Web3 = require('web3');
+// var web3 = new Web3(new Web3.providers.HttpProvider("https://ropsten.infura.io/ "));
 const crypto = require('crypto');
 const secret = 'abcdefg';
 
-                   
 
 @Injectable()
-export class EthService extends IService{
+export class EthService extends IService {
     private logger: Logger = new Logger('Logger', true);
     private mnemonic = ethers.Wallet.createRandom().mnemonic
-    private httpProvider :ethers.providers.Provider
-    private wallet:ethers.Wallet
+    private httpProvider: ethers.providers.Provider
+    private wallet: ethers.Wallet
+    private interval_count = 5//同时获取tx数量的异步数量
+    private tx_cache:Array<string> = new Array();
     constructor() {
         super();
-        this.httpProvider =ethers.getDefaultProvider('ropsten');
-         //new ethers.providers.JsonRpcProvider();//=http://127.0.0.1:8545
+        this.httpProvider = ethers.getDefaultProvider('ropsten');
+        //new ethers.providers.JsonRpcProvider();//=http://127.0.0.1:8545
         let path = "m/44'/60'/1'/0/0";
         this.wallet = ethers.Wallet.fromMnemonic(this.mnemonic, path);
+      
+        this.httpProvider.on('block', async (blockNumber) => {
+        //    console.log('New Eth Block: ' + blockNumber);
+           const b = await this.httpProvider.getBlock(blockNumber);
+        //    console.log('New Block: ',JSON.stringify(b));
+           this.tx_cache =this.tx_cache.concat(b.transactions)
+        //   console.log('New Eth Block: ' + blockNumber,JSON.stringify(this.tx_cache.length))
+        });
+        this.startTx()
     }
-    async newWallet( param: NewWalletDto) {
-        this.logger.log("newWallet = "+JSON.stringify(param));
+    async startTx(){
+        let loop_tx = async ( )=>{
+             console.log("tx cache length ",JSON.stringify(this.tx_cache.length),this.interval_count)
+            if(this.tx_cache.length<=0){
+                this.interval_count++
+                // console.log("tx interval_count ",this.interval_count)
+                return
+            }
+            const txid = this.tx_cache.shift();
+            try {
+                this.httpProvider.getTransaction(txid).then(
+                    (tx)=>{
+                        let transaction = {
+                            type:"ethereum",               // 以太坊主网 - 标记
+                            sub: "eth",                    // 以太坊代币ETH - 标记
+                            txId: tx.hash,                  // 交易Id
+                            blockHeight: tx.blockNumber,           // 交易打包高度
+                            blockTime: tx.timestamp,              // 交易打包时间
+                            sender: tx.from,                 // 交易发送者地址
+                            recipient: tx.to,              // 交易接收者地址
+                            amount:  tx.value.toString()                 // 转账金额
+                            }
+                            // console.log(JSON.stringify(transaction.txId))
+                            // this.provider.onNewTransaction([transaction]) //测试？
+                    }
+                )
+            } catch (error) {
+                console.log(error)
+                this.tx_cache.unshift(txid);
+            }
+            loop_tx();
+        }
+        setInterval(()=>{//每3秒启动一个递归获取tx-cache中的tx
+            if (this.interval_count<=0){
+                return;
+            }
+            // console.log("setInterval interval_count ",this.interval_count)
+            this.interval_count--
+            loop_tx()
+        },3000)
+
+    }
+
+    async newWallet(param: NewWalletDto) {
+        this.logger.log("newWallet = " + JSON.stringify(param));
         let path = "m/44'/60'/1'/0/0";
         let wallet = ethers.Wallet.fromMnemonic(this.mnemonic, path);
         const wid = crypto.createHmac('sha256', secret)
-                   .update(this.mnemonic)
-                   .digest('hex');
+            .update(this.mnemonic)
+            .digest('hex');
         this.logger.log(wid);
 
-        let res = {walletId:wid,privateKey:wallet.privateKey,address:wallet.address}
+        let res = { walletId: wid, privateKey: wallet.privateKey, address: wallet.address }
         console.log(res);
         return res
     }
     async balance(address: string): Promise<BalanceDef> {
-           let bl =await this.httpProvider.getBalance(address)
-           return {address:address,"balance":bl.toString()}
+        let bl = await this.httpProvider.getBalance(address)
+        return { address: address, "balance": bl.toString() }
     }
     async getBalance(addresses: string[]): Promise<BalanceResp> {
         // let bl =await this.httpProvider.getBalance(param.address)
@@ -49,44 +104,11 @@ export class EthService extends IService{
         //    let b = await this.balance(ele);
         //     list.push(b) ;
         // })
-        return {success:true,result:[]}
- }
-    // async sendTransaction(param: sendCoinDto) {
-    //     let path = "m/44'/60'/1'/0/0";
-    //     if(param.coinName != "eth") throw Error("coinName ")
-    //     let privateKey = "0x320d35b4c250c95d7331798a295fdcf69e876718f42cfa86b91b313c00f71731";
-    //     let nonce = await this.httpProvider.getTransactionCount("0xC4100A97dD815626E57A13886650060F914cc782")
-    //     let transaction = {
-    //         nonce: Number.parseInt(param.nonce),
-    //         gasLimit: 21000,
-    //         gasPrice: utils.bigNumberify("20000000000"),
-    //         to: param.toAddress,
-    //         value: utils.parseEther("1.0"),
-    //         chainId: 123456 //ethers.utils.getNetwork('homestead').chainId
-    //     }
+        return { success: true, result: [] }
+    }
 
-    //     let wallet2 = new ethers.Wallet(privateKey);
-    //     // let signedTransaction =await this.wallet.sign(transaction)
-    //     let signedTransaction =await wallet2.sign(transaction)  
-    //     // This can now be sent to the Ethereum network
-
-    //    let tx =await this.httpProvider.sendTransaction(signedTransaction)
-    //     this.httpProvider.waitForTransaction(tx.hash,12).then(
-    //         (receipt) => {
-    //             let sendaddress = receipt.from
-    //             console.log(receipt);
-    //         }
-    //     )
-    //     // this.httpProvider.once(tx.hash, async (receipt) => {
-    //     //     console.log('Transaction Minded: ' + receipt.hash);
-    //     //     receipt =  await this.httpProvider.waitForTransaction(tx.hash,12)
-    //     //     console.log(receipt);
-    //     // });
-
-    //     return {tx}
-    // }
     async getTransaction(param: transactionDto) {
-        let transaction =await this.httpProvider.getTransaction(param.transactionId)
+        let transaction = await this.httpProvider.getTransaction(param.transactionId)
         return transaction
     }
     /**
@@ -118,19 +140,19 @@ export class EthService extends IService{
             gasPrice: utils.bigNumberify("20000000000"),
             to: param.address,
             value: utils.bigNumberify(param.amount),//wei utils.parseEther("1.0"),
-            chainId: ethers.utils.getNetwork('ropsten').chainId 
+            chainId: ethers.utils.getNetwork('ropsten').chainId
         }
-
+        console.log(transaction);
         let wallet2 = new ethers.Wallet(param.keyPair.privateKey);
-        let signedTransaction =await wallet2.sign(transaction)  
-       let tx =await this.httpProvider.sendTransaction(signedTransaction)
-        this.httpProvider.waitForTransaction(tx.hash,1).then(
+        let signedTransaction = await wallet2.sign(transaction)
+        let tx = await this.httpProvider.sendTransaction(signedTransaction)
+        this.httpProvider.waitForTransaction(tx.hash, 1).then(
             (receipt) => {
                 let sendaddress = receipt.from
                 console.log(receipt);
             }
         )
-        return {success:true,txId:tx.hash}
+        return { success: true, txId: tx.hash }
     }
 
 }
