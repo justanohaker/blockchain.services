@@ -30,7 +30,7 @@ export class UserService {
     constructor(
         private readonly jwtService: JwtService,
         private readonly userbasicsCurd: UserbasicsCurd,
-        private readonly usersCurd: UsersCurd,
+        // private readonly usersCurd: UsersCurd,
         private readonly secretsCurd: SecretsCurd,
         private readonly webhooksCurd: WebhooksCurd,
         private readonly btcaccountsCurd: BtcaccountsCurd,
@@ -55,7 +55,7 @@ export class UserService {
             );
             // TODO: balance, secret, btc_account, eth_account
             // init 
-            await this.usersCurd.add(newUserId);
+            // await this.usersCurd.add(newUserId);
             // secret
             const newSecret = await bipNewMnemonic();
             await this.secretsCurd.add(newUserId, newSecret);
@@ -115,7 +115,7 @@ export class UserService {
             );
             // TODO: balance, secret, btc_account, eth_account
             // init 
-            await this.usersCurd.add(newUserId);
+            // await this.usersCurd.add(newUserId);
             // secret
             const newSecret = await bipNewMnemonic();
             await this.secretsCurd.add(newUserId, newSecret);
@@ -168,12 +168,22 @@ export class UserService {
     }
 
     async detail(userName: string, uid: string) {
-        const findRepo = await this.usersCurd.findByUid(uid);
-        const jsonBalances = JSON.parse(findRepo.balance || '');
+        const checkUid = await this.hasUserId(uid);
+        if (!checkUid) {
+            throw new Error(`userid(${uid}) not exists!`);
+        }
+        // const findRepo = await this.usersCurd.findByUid(uid);
+        // const jsonBalances = JSON.parse(findRepo.balance || '');
+        const btcAccount = await this.btcaccountsCurd.findByUid(uid);
+        const ethAccount = await this.ethaccountsCurd.findByUid(uid);
+
         return {
             user_id: uid,
             username: userName,
-            balances: jsonBalances
+            balances: {
+                btc: btcAccount.balance,
+                eth: ethAccount.balance
+            }
         };
     }
 
@@ -219,6 +229,30 @@ export class UserService {
                 };
             }
 
+            default:
+                throw new Error(`unsupported cointype(${coinType})`);
+        }
+    }
+
+    async getBalance(uid: string, coinType: CoinType) {
+        const checkUid = await this.hasUserId(uid);
+        if (!checkUid) {
+            throw new Error(`userid(${uid}) not`)
+        }
+
+        switch (coinType) {
+            case CoinType.BITCOIN: {
+                const btcAccount = await this.btcaccountsCurd.findByUid(uid);
+                return {
+                    balance: btcAccount.balance
+                };
+            }
+            case CoinType.ETHEREUM: {
+                const ethAccount = await this.ethaccountsCurd.findByUid(uid);
+                return {
+                    balance: ethAccount.balance
+                };
+            }
             default:
                 throw new Error(`unsupported cointype(${coinType})`);
         }

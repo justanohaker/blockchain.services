@@ -10,26 +10,29 @@ import {
     HttpStatus,
     HttpCode,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiBody } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
-import { RegisterDto, NewUserDto } from './dtos/register.dto';
-import { LoginDto } from './dtos/login.dto';
 import { UserService } from './user.service';
 import { UserBasic } from '../entities/user_basic.entity';
 import { LoginUser, LoginUserDto } from '../libs/decorators/login-user.decorator';
-import { AddWebHookDto } from './dtos/webhook.dto';
 import { respSuccess, respFailure, RespErrorCode } from 'src/libs/responseHelper';
+import { RegisterDto, NewUserDto } from './dtos/register.dto';
+import { LoginDto } from './dtos/login.dto';
+import { AddWebHookDto } from './dtos/webhook.dto';
 import { DespositCoinDto } from './dtos/deposit.dto';
-import { FindUUIDIdParamDto } from './dtos/common.dto';
+import { FindUUIDIdParamDto, CoinTypeDto } from './dtos/common.dto';
 
-@ApiTags('user')
+@ApiTags('用户')
 @Controller('user')
 export class UserController {
     constructor(
         private readonly userService: UserService
     ) { }
 
-    @ApiOperation({ summary: '注册' })
+    @ApiOperation({
+        summary: '用户注册',
+        description: '注册用户信息，用户使用自定义的用户名和密码注册用户',
+    })
     @Post('register')
     @HttpCode(HttpStatus.OK)
     async register(@Body() registerDto: RegisterDto) {
@@ -45,7 +48,10 @@ export class UserController {
         }
     }
 
-    @ApiOperation({ summary: '登记、获取密码' })
+    @ApiOperation({
+        summary: '用户Id登记',
+        description: '用于登记三方服务的UserId，并产生本系统的用户信息'
+    })
     @Post('new')
     @HttpCode(HttpStatus.OK)
     async newUserId(@Body() newUserDto: NewUserDto) {
@@ -61,7 +67,10 @@ export class UserController {
         }
     }
 
-    @ApiOperation({ summary: '登陆' })
+    @ApiOperation({
+        summary: '(用户|三方用户Id)登陆',
+        description: '用户名|三方用户Id/密码登陆本系统，获取调用API的access_token授权信息'
+    })
     @UseGuards(AuthGuard('local'))
     @Post('login')
     @HttpCode(HttpStatus.OK)
@@ -79,7 +88,10 @@ export class UserController {
         }
     }
 
-    @ApiOperation({ summary: '获取用户详情' })
+    @ApiOperation({
+        summary: '获取登陆用户详情',
+        description: '获取当前登陆的用户详情，包含用户名,各币种余额信息!'
+    })
     @ApiBearerAuth()
     @UseGuards(AuthGuard('jwt'))
     @Get()
@@ -97,7 +109,10 @@ export class UserController {
     }
 
     // webhooks
-    @ApiOperation({ summary: '获取用户设置webhooks' })
+    @ApiOperation({
+        summary: '获取登陆用户的WebHook列表',
+        description: '用于获取当前登陆用户的WebHook列表信息'
+    })
     @ApiBearerAuth()
     @Get('webhooks')
     @UseGuards(AuthGuard('jwt'))
@@ -119,7 +134,10 @@ export class UserController {
         }
     }
 
-    @ApiOperation({ summary: "获取对应id的webhook信息" })
+    @ApiOperation({
+        summary: "获取登陆用户WebHook信息",
+        description: '用于获取当前登陆用户指定的WebHook信息'
+    })
     @ApiBearerAuth()
     @Get('webhooks/:id')
     @UseGuards(AuthGuard('jwt'))
@@ -151,7 +169,10 @@ export class UserController {
         }
     }
 
-    @ApiOperation({ summary: '设置用户webhook' })
+    @ApiOperation({
+        summary: '添加登陆用户WebHook',
+        description: '用于添加当前登陆用户的WebHook，用于系统事件与消息推送'
+    })
     @ApiBearerAuth()
     @UseGuards(AuthGuard('jwt'))
     @Post("webhooks")
@@ -183,7 +204,10 @@ export class UserController {
 
     // }
 
-    @ApiOperation({ summary: '删除指定id的webhook设置' })
+    @ApiOperation({
+        summary: '删除登陆用户的WebHook信息',
+        description: '用于删除登陆用户指定Id的WebHook信息'
+    })
     @ApiBearerAuth()
     @UseGuards(AuthGuard('jwt'))
     @Delete('webhooks/:id')
@@ -210,7 +234,10 @@ export class UserController {
     }
 
     // desposit 
-    @ApiOperation({ summary: '获取对就的充币地址' })
+    @ApiOperation({
+        summary: '获取登陆用户充币地址',
+        description: '用于获取当前登陆用户各平台的充币地址(BitCoin, Ethereum)'
+    })
     @ApiBearerAuth()
     @UseGuards(AuthGuard('jwt'))
     @Get('desposit/:coin')
@@ -222,6 +249,29 @@ export class UserController {
         try {
             const result = await this.userService.getBlockchainAddress(uid, despositCoinDto.coin);
             return respSuccess(result);
+        } catch (error) {
+            return respFailure(
+                RespErrorCode.INTERNAL_SERVER_ERROR,
+                `${error}`
+            );
+        }
+    }
+
+    @ApiOperation({
+        summary: '获取余额',
+        description: '用于获取当前登陆用户的余额'
+    })
+    @ApiBearerAuth()
+    @UseGuards(AuthGuard('jwt'))
+    @Get('balance/:coin')
+    async getBalance(
+        @LoginUser() user: LoginUserDto,
+        @Param() coinType: CoinTypeDto
+    ) {
+        const { uid } = user;
+        try {
+            const balance = await this.userService.getBalance(uid, coinType.coin);
+            return respSuccess(balance);
         } catch (error) {
             return respFailure(
                 RespErrorCode.INTERNAL_SERVER_ERROR,

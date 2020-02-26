@@ -8,14 +8,17 @@ import { respFailure, RespErrorCode, respSuccess } from 'src/libs/responseHelper
 import { TransferDto, DespositDto } from './dtos/transfer.dto';
 import { TransactionRole } from '../libs/libs.types';
 
-@ApiTags('transaction')
+@ApiTags('交易')
 @Controller('transaction')
 export class TransactionController {
     constructor(
         private readonly trsService: TransactionService
     ) { }
 
-    @ApiOperation({ summary: '查询交易记录' })
+    @ApiOperation({
+        summary: '查询交易记录',
+        description: '用于查询当前登陆账号的历史交易记录'
+    })
     @ApiBearerAuth()
     @Get(':coin')
     @UseGuards(AuthGuard('jwt'))
@@ -47,7 +50,10 @@ export class TransactionController {
         }
     }
 
-    @ApiOperation({ summary: '查询提币' })
+    @ApiOperation({
+        summary: '查询提币',
+        description: '查询当前登陆用户的历史提币记录'
+    })
     @ApiBearerAuth()
     @Get(':coin/withdraw')
     @UseGuards(AuthGuard('jwt'))
@@ -79,7 +85,10 @@ export class TransactionController {
         }
     }
 
-    @ApiOperation({ summary: '查询充币' })
+    @ApiOperation({
+        summary: '查询充币',
+        description: '查询当前登陆用户的充币历史记录'
+    })
     @ApiBearerAuth()
     @Get(':coin/desposit')
     @UseGuards(AuthGuard('jwt'))
@@ -112,7 +121,10 @@ export class TransactionController {
         }
     }
 
-    @ApiOperation({ summary: '转账' })
+    @ApiOperation({
+        summary: '转账',
+        description: '用于处理当前登陆用户的转账请求'
+    })
     @ApiBearerAuth()
     @Post('sendTo')
     @HttpCode(HttpStatus.OK)
@@ -121,6 +133,7 @@ export class TransactionController {
         @LoginUser() user: LoginUserDto,
         @Body() transferDto: TransferDto
     ) {
+        return respFailure(RespErrorCode.NOT_IMPLEMENTED, '功能未实现!');
         try {
             const { uid } = user;
             const { coin, address, amount } = transferDto;
@@ -149,7 +162,10 @@ export class TransactionController {
         }
     }
 
-    @ApiOperation({ summary: '提币' })
+    @ApiOperation({
+        summary: '提币',
+        description: '用于当前登陆用户提币到其它地址'
+    })
     @ApiBearerAuth()
     @Post('despositTo')
     @HttpCode(HttpStatus.OK)

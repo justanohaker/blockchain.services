@@ -10,7 +10,8 @@ export const enum Platform {
 }
 
 export async function bipNewMnemonic(strength: number = 128): Promise<string> {
-    return generateMnemonic(strength)
+    // return generateMnemonic(strength)
+    return 'cave syrup rather injury exercise unit army burden matrix horn celery gas border churn wheat';
 }
 
 export async function bipMnemonicToSeed(
