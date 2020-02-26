@@ -5,7 +5,7 @@ import { IService } from '../common/service.interface';
 import { IServiceProvider } from '../common/service.provider';
 import { ethers, utils } from 'ethers';
 import { EthaccountsCurd } from '../../curds/ethaccounts-curd';
-const async= require('async');
+// const async= require('async');
 // var Web3 = require('web3');
 // var web3 = new Web3(new Web3.providers.HttpProvider("https://ropsten.infura.io/ "));
 const crypto = require('crypto');
@@ -34,11 +34,11 @@ export class EthService extends IService {
            this.tx_cache =this.tx_cache.concat(b.transactions)
         //   console.log('New Eth Block: ' + blockNumber,JSON.stringify(this.tx_cache.length))
         });
-        this.startTx()
+        // this.startTx()
     }
     async startTx(){
-        let loop_tx = async ( )=>{
-             console.log("tx cache length ",JSON.stringify(this.tx_cache.length),this.interval_count)
+        let loop_tx = ()=>{
+            //  console.log("tx cache length ",JSON.stringify(this.tx_cache.length),this.interval_count)
             if(this.tx_cache.length<=0){
                 this.interval_count++
                 // console.log("tx interval_count ",this.interval_count)
@@ -63,7 +63,7 @@ export class EthService extends IService {
                     }
                 )
             } catch (error) {
-                console.log(error)
+                // console.log(error)
                 this.tx_cache.unshift(txid);
             }
             loop_tx();
