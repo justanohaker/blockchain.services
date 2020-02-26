@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { NewWalletDto, sendCoinDto, balanceDto, transactionDto } from './eth.dto';
-import { BalanceDef, BalanceResp, TransferDef, TransferResp } from '../common/types';
+import { BalanceDef, BalanceResp, TransferDef, TransferResp, EthereumTransaction } from '../common/types';
 import { IService } from '../common/service.interface';
 import { IServiceProvider } from '../common/service.provider';
 import { ethers, utils } from 'ethers';
@@ -34,7 +34,7 @@ export class EthService extends IService {
            this.tx_cache =this.tx_cache.concat(b.transactions)
         //   console.log('New Eth Block: ' + blockNumber,JSON.stringify(this.tx_cache.length))
         });
-        // this.startTx()
+       // this.startTx()
     }
     async startTx(){
         let loop_tx = ()=>{
@@ -44,22 +44,25 @@ export class EthService extends IService {
                 // console.log("tx interval_count ",this.interval_count)
                 return
             }
+            
             const txid = this.tx_cache.shift();
             try {
                 this.httpProvider.getTransaction(txid).then(
                     (tx)=>{
-                        let transaction = {
+                        let transaction :  EthereumTransaction = {
                             type:"ethereum",               // 以太坊主网 - 标记
-                            sub: "eth",                    // 以太坊代币ETH - 标记
-                            txId: tx.hash,                  // 交易Id
-                            blockHeight: tx.blockNumber,           // 交易打包高度
-                            blockTime: tx.timestamp,              // 交易打包时间
-                            sender: tx.from,                 // 交易发送者地址
-                            recipient: tx.to,              // 交易接收者地址
-                            amount:  tx.value.toString()                 // 转账金额
-                            }
+                            sub:"eth",                    // 以太坊代币ETH - 标记
+                            txId:tx.hash,                  // 交易Id
+                            blockHeight:tx.blockNumber,           // 交易打包高度
+                            blockTime:tx.timestamp,              // 交易打包时间
+                            sender:tx.from,                 // 交易发送者地址
+                            recipient:tx.to,              // 交易接收者地址
+                            amount: tx.value.toString()                 // 转账金额
+                        }
                             // console.log(JSON.stringify(transaction.txId))
-                            // this.provider.onNewTransaction([transaction]) //测试？
+                            if(this.validAddresses && (transaction.sender in this.validAddresses || 
+                                transaction.recipient in this.validAddresses))
+                            this.provider.onNewTransaction([transaction]) //测试？
                     }
                 )
             } catch (error) {
@@ -68,7 +71,7 @@ export class EthService extends IService {
             }
             loop_tx();
         }
-        setInterval(()=>{//每3秒启动一个递归获取tx-cache中的tx
+        setInterval(async ()=>{//每3秒启动一个递归获取tx-cache中的tx
             if (this.interval_count<=0){
                 return;
             }
