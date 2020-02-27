@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
 
 import { IServiceProvider } from '../../blockchain/common/service.provider';
 import { BalanceDef, Transaction, EthereumTransaction } from '../../blockchain/common/types';
@@ -15,7 +15,7 @@ import { NotifierService } from '../../notifier/notifier.service';
 
 @Injectable()
 export class EthProvider
-    implements IServiceProvider, IServiceGetter, ITransactionGetter, IUserChanger {
+    implements IServiceProvider, IServiceGetter, ITransactionGetter, IUserChanger, OnApplicationBootstrap {
     private _service: IService;
     private _onDirtyCallback: () => Promise<void>;
     private _cachedAddresses?: string[] = null;
@@ -31,8 +31,20 @@ export class EthProvider
 
         if (this.ethService instanceof IService) {
             this._service = this.ethService;
+            console.log('EthProvider.serProvider');
             this._service.setProvider(this);
         }
+    }
+
+    async onApplicationBootstrap(): Promise<void> {
+        const validAddresses = await this.getValidAddresses();
+
+        // update all balances
+        try {
+            this.ethService.onUpdateBalances(validAddresses);
+            // update transaction history
+            //TODO
+        } catch (error) { }
     }
 
     /**
@@ -53,9 +65,17 @@ export class EthProvider
 
         let cond: any = null;
         if (mode === TransactionRole.SENDER) {
-            cond = { sender: findRepo.address };
+            cond = {
+                where: [
+                    { sender: findRepo.address }
+                ]
+            };
         } else if (mode === TransactionRole.RECIPIENT) {
-            cond = { recipient: findRepo.address };
+            cond = {
+                where: [
+                    { recipient: findRepo.address }
+                ]
+            };
         } else {
             cond = {
                 where: [
@@ -64,20 +84,22 @@ export class EthProvider
                 ]
             };
         }
-        cond.order = { blockHeight: 'DESC', txId: 'DESC' }
+        cond.order = { blockHeight: 'DESC', txId: 'DESC', nonce: 'DESC' }
 
+        // console.log('EthProvider.getBalances cond:', JSON.stringify(cond, null, 2));
         const validTrRepos = await this.ethTransactionCurd.find(cond);
         const result: Transaction[] = [];
         for (const repo of validTrRepos) {
-            const tr = new EthereumTransaction();
-            tr.type = 'ethereum';
-            tr.sub = 'eth';
-            tr.txId = repo.txId;
-            tr.blockHeight = repo.blockHeight;
-            tr.sender = repo.sender;
-            tr.recipient = repo.recipient;
-            tr.amount = repo.amount;
-
+            const tr: EthereumTransaction = {
+                type: 'ethereum',
+                sub: 'eth',
+                txId: repo.txId,
+                blockHeight: repo.blockHeight,
+                nonce: repo.nonce,
+                sender: repo.sender,
+                recipient: repo.recipient,
+                amount: repo.amount
+            };
             result.push(tr);
         }
         return result;
@@ -92,14 +114,16 @@ export class EthProvider
             throw new Error(`TxId(${txId}) not exists!`);
         }
 
-        const result = new EthereumTransaction();
-        result.type = 'ethereum';
-        result.sub = 'eth';
-        result.txId = findRepo.txId;
-        result.blockHeight = findRepo.blockHeight;
-        result.sender = findRepo.sender;
-        result.recipient = findRepo.recipient;
-        result.amount = findRepo.amount;
+        const result: EthereumTransaction = {
+            type: 'ethereum',
+            sub: 'eth',
+            txId: findRepo.txId,
+            blockHeight: findRepo.blockHeight,
+            nonce: findRepo.nonce,
+            sender: findRepo.sender,
+            recipient: findRepo.recipient,
+            amount: findRepo.amount
+        };
 
         return result;
     }
@@ -126,11 +150,14 @@ export class EthProvider
             }
             this._cachedAddresses = validAddresses;
         }
+        console.log('EthProvider.getValidAddresses:', this._cachedAddresses);
         return this._cachedAddresses;
     }
 
     async setDirtyFn(fn: () => Promise<void>): Promise<void> {
         this._onDirtyCallback = fn;
+
+        await this._onDirtyCallback();
     }
 
     async onBalanceChanged(newBalances: BalanceDef[]): Promise<void> {
@@ -164,15 +191,17 @@ export class EthProvider
             const {
                 txId,
                 blockHeight,
-                blockTime,
+                nonce,
                 sender,
                 recipient,
                 amount
             } = t;
+            console.log('EthProvider.onNewTransaction ' +
+                `(${txId}, ${blockHeight}, ${sender}, ${recipient}, ${amount})`);
             const addResult = await this.ethTransactionCurd.add(
                 txId,
                 blockHeight,
-                blockTime,
+                nonce,
                 sender,
                 recipient,
                 amount
@@ -187,12 +216,15 @@ export class EthProvider
                         txId,
                         url,
                         blockHeight,
-                        blockTime,
+                        nonce,
                         sender,
                         recipient,
                         amount
                     });
                 }
+                try {
+                    await this.ethService.onUpdateBalances([sender]);
+                } catch (error) { }
             }
             const recipientNotificationRepos = await this.getNotificationProp(recipient);
             if (recipientNotificationRepos) {
@@ -202,15 +234,42 @@ export class EthProvider
                         txId,
                         url,
                         blockHeight,
-                        blockTime,
+                        nonce,
                         sender,
                         recipient,
                         amount
                     });
                 }
+
+                try {
+                    await this.ethService.onUpdateBalances([recipient]);
+                } catch (error) { }
             }
             // end notify
         }
+    }
+
+    async getBalanceOnline(addresses: string[]): Promise<BalanceDef[]> {
+        const result: BalanceDef[] = [];
+
+        try {
+            const balances = await this.ethService.getBalance(addresses);
+            if (balances.success) {
+                for (const i of balances.result) {
+                    result.push(i);
+                }
+            } else {
+                for (const addr of addresses) {
+                    result.push({ address: addr, balance: '0' });
+                }
+            }
+        } catch (error) {
+            for (const addr of addresses) {
+                result.push({ address: addr, balance: '0' });
+            }
+        }
+
+        return result;
     }
 
     private async getNotificationProp(address: string): Promise<{ urls: string[]; uid: string }> {

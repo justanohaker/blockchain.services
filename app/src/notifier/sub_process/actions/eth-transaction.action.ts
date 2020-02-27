@@ -21,7 +21,7 @@ export class EthTransactionAction extends BaseAction {
                 uid: this.ethTransactionData.uid,
                 txId: this.ethTransactionData.txId,
                 blockHeight: this.ethTransactionData.blockHeight,
-                blockTime: this.ethTransactionData.blockTime,
+                nonce: this.ethTransactionData.nonce,
                 sender: this.ethTransactionData.sender,
                 recipient: this.ethTransactionData.recipient,
                 amount: this.ethTransactionData.amount,

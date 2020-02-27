@@ -4,7 +4,7 @@ export type EthTransactionNotification = {
     uid: string;
     txId: string;
     blockHeight: number;
-    blockTime: number;
+    nonce: number;
     sender: string;
     recipient: string;
     amount: string;

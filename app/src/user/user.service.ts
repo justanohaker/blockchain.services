@@ -13,7 +13,6 @@ import { genpasswordGen } from '../libs/helpers/genpasswordHelper';
 import { CoinType } from '../libs/common/coin-define';
 
 import { UserbasicsCurd } from '../curds/userbasics-curd';
-import { UsersCurd } from '../curds/users-curd';
 import { SecretsCurd } from '../curds/secrets-curd';
 import { WebhooksCurd } from '../curds/webhooks-curd';
 import { BtcaccountsCurd } from '../curds/btcaccounts-curd';
@@ -21,7 +20,6 @@ import { EthaccountsCurd } from '../curds/ethaccounts-curd';
 import { AddWebHookDto } from './dtos/webhook.dto';
 import { BtcProvider } from '../provider/btc-provider/btc.provider';
 import { EthProvider } from '../provider/eth-provider/eth.provider';
-import { networks } from 'bitcoinjs-lib';
 
 @Injectable()
 export class UserService {
@@ -68,12 +66,17 @@ export class UserService {
                 Platform.BITCOIN_TESTNET,
                 btcPrivPub.xpub
             );
+            console.log('UserService btcaccountcurd add');
             await this.btcaccountsCurd.add(
                 newUserId,
                 btcPrivPub.xpriv,
                 btcPrivPub.xpub,
                 btcAddress
             );
+            // TODO: update balance for new user
+            const btcBalance = await this.btcProvider.getBalanceOnline([btcAddress]);
+            await this.btcaccountsCurd.updateBalanceByAddress(btcAddress, btcBalance[0].balance);
+            // END TODO
             // eth account
             const ethPrivPub = await bipPrivpubFromMnemonic(
                 newSecret,
@@ -89,6 +92,10 @@ export class UserService {
                 ethPrivPub.xpub,
                 ethAddress
             );
+            // TODO: update balance for new user
+            const ethBalance = await this.ethProvider.getBalanceOnline([ethAddress]);
+            await this.ethaccountsCurd.updateBalanceByAddress(ethAddress, ethBalance[0].balance);
+            // END TODO
 
             // onUserChanged
             await this.ethProvider.onUserChanged();
@@ -172,8 +179,6 @@ export class UserService {
         if (!checkUid) {
             throw new Error(`userid(${uid}) not exists!`);
         }
-        // const findRepo = await this.usersCurd.findByUid(uid);
-        // const jsonBalances = JSON.parse(findRepo.balance || '');
         const btcAccount = await this.btcaccountsCurd.findByUid(uid);
         const ethAccount = await this.ethaccountsCurd.findByUid(uid);
 

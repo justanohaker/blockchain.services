@@ -206,18 +206,26 @@ export class BtcService extends IService {
      * @param addresses - 地址集合
      */
     async getBalance(addresses: string[]): Promise<BalanceResp> {
-        let result: any;
-        let address = addresses[0];
-        await axios.get('https://api.blockcypher.com/v1/btc/test3/addrs/' + address + '/balance')
-            .then((res: any) => {
-                console.log(res.data);
-                result = res.data;
-            })
-            .catch((err: any) => {
-                console.log(err)
-                return { success: false, error: err };
-            });
-        return { success: true, result };
+        const result: BalanceResp = { success: true, result: [] };
+
+        for (const address of addresses) {
+            try {
+                const btcBalanceResp = await axios.get(`https://api.blockcypher.com/v1/btc/test3/addrs/${address}/balance`);
+                if (btcBalanceResp.status !== 200 &&
+                    btcBalanceResp.status !== 201) {
+                    throw new Error();
+                }
+                const respData = btcBalanceResp.data;
+                result.result.push({
+                    address: respData.address,
+                    balance: respData.balance
+                });
+            } catch (error) {
+                result.result.push({ address: address, balance: '0' });
+            }
+        }
+
+        return result;
     }
 
     /**

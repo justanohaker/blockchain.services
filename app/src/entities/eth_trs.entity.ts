@@ -12,7 +12,7 @@ export class ETHTransaction {
     blockHeight: number;
 
     @Column()
-    blockTime: number;
+    nonce: number;
 
     @Column()
     sender: string;

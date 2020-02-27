@@ -1,7 +1,8 @@
 import { generateMnemonic, mnemonicToSeedSync } from 'bip39';
 import { fromSeed, fromBase58, BIP32Interface } from 'bip32';
-import { Network, networks, payments } from 'bitcoinjs-lib';
+import { networks, payments } from 'bitcoinjs-lib';
 import { importPublic, publicToAddress } from 'ethereumjs-util';
+import { utils } from 'ethers';
 
 export const enum Platform {
     BITCOIN = "m/44'/0'/0'/0/0",
@@ -10,8 +11,8 @@ export const enum Platform {
 }
 
 export async function bipNewMnemonic(strength: number = 128): Promise<string> {
-    // return generateMnemonic(strength)
-    return 'cave syrup rather injury exercise unit army burden matrix horn celery gas border churn wheat';
+    return generateMnemonic(strength)
+    // return 'cave syrup rather injury exercise unit army burden matrix horn celery gas border churn wheat';
 }
 
 export async function bipMnemonicToSeed(
@@ -88,7 +89,7 @@ export async function bipGetAddressFromXPub(platform: Platform, xpub: string) {
         case Platform.ETHEREUM: {
             const ethereumPubkey = importPublic(pubkey);
             const addr = publicToAddress(ethereumPubkey);
-            return '0x' + addr.toString('hex');
+            return utils.getAddress('0x' + addr.toString('hex'));
         }
 
         case Platform.BITCOIN_TESTNET: {

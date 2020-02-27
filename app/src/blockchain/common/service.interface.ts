@@ -28,6 +28,18 @@ export class IService {
 
     /**
      * @note override
+     * 请求Service更新地址列表对应的余额信息
+     * 更新完成之后，调用this.provider.onBalanceChanged()
+     * 
+     * @param addresses 地址列表
+     */
+    async onUpdateBalances(addresses: string[]): Promise<void> {
+        // TODO: implemented by subclass
+        throw new Error('Implemented by subclass!');
+    }
+
+    /**
+     * @note override
      * @param data 
      */
     async transfer(data: TransferDef): Promise<TransferResp> {

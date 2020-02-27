@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 
 import { In } from 'typeorm';
 import { BtcaccountsCurd } from '../../curds/btcaccounts-curd';
@@ -16,7 +16,7 @@ import { NotifierService } from '../../notifier/notifier.service';
 
 @Injectable()
 export class BtcProvider
-    implements IServiceProvider, IServiceGetter, ITransactionGetter, IUserChanger {
+    implements IServiceProvider, IServiceGetter, ITransactionGetter, IUserChanger, OnModuleInit {
     private _service: IService;
     private _onDirtyCallback: () => Promise<void>;
     private _cachedAddresses?: string[] = null;
@@ -33,6 +33,17 @@ export class BtcProvider
             this._service = this.btcService;
             this._service.setProvider(this);
         }
+    }
+
+    async onModuleInit(): Promise<void> {
+        const validAddresses = await this.getValidAddresses();
+
+        try {
+            // update all balances
+            await this.btcService.onUpdateBalances(validAddresses);
+            // update all transactions
+            // TODO
+        } catch (error) { }
     }
 
     /**
@@ -72,15 +83,15 @@ export class BtcProvider
         });
         const result: Transaction[] = [];
         for (const repo of validTrRepos) {
-            const tr = new BitcoinTransaction();
-            tr.type = 'bitcoin';
-            tr.sub = 'btc';
-            tr.txId = repo.txId;
-            tr.blockHeight = repo.blockHeight;
-            tr.blockTime = repo.blockTime;
-            tr.vIns = repo.vIns;
-            tr.vOuts = repo.vOuts;
-
+            const tr: BitcoinTransaction = {
+                type: 'bitcoin',
+                sub: 'btc',
+                txId: repo.txId,
+                blockHeight: repo.blockHeight,
+                blockTime: repo.blockTime,
+                vIns: repo.vIns,
+                vOuts: repo.vOuts
+            };
             result.push(tr);
         }
         return result;
@@ -94,16 +105,15 @@ export class BtcProvider
         if (!findRepo) {
             throw new Error(`TxId(${txId}) not exists!`);
         }
-
-        const result = new BitcoinTransaction();
-        result.type = 'bitcoin';
-        result.sub = 'btc';
-        result.txId = findRepo.txId;
-        result.blockHeight = findRepo.blockHeight;
-        result.blockTime = findRepo.blockTime;
-        result.vIns = findRepo.vIns;
-        result.vOuts = findRepo.vOuts;
-
+        const result: BitcoinTransaction = {
+            type: 'bitcoin',
+            sub: 'btc',
+            txId: findRepo.txId,
+            blockHeight: findRepo.blockHeight,
+            blockTime: findRepo.blockTime,
+            vIns: findRepo.vIns,
+            vOuts: findRepo.vOuts,
+        };
         return result;
     }
 
@@ -135,6 +145,8 @@ export class BtcProvider
 
     async setDirtyFn(fn: () => Promise<void>) {
         this._onDirtyCallback = fn;
+
+        await this._onDirtyCallback();
     }
 
     async onBalanceChanged(newBalances: BalanceDef[]): Promise<void> {
@@ -199,6 +211,9 @@ export class BtcProvider
                         vOuts
                     });
                 }
+                try {
+                    await this.btcService.onUpdateBalances([vIn.address]);
+                } catch (error) { }
             }
             for (const vOut of vOuts) {
                 const notificationProps = await this.getNotificationProp(vOut.address);
@@ -216,9 +231,38 @@ export class BtcProvider
                         vOuts
                     });
                 }
+                try {
+                    await this.btcService.onUpdateBalances([vOut.address]);
+                } catch (error) { }
             }
             // end notify
         }
+    }
+
+    async getBalanceOnline(addresses: string[]): Promise<BalanceDef[]> {
+        const result: BalanceDef[] = [];
+
+        try {
+            const balances = await this.btcService.getBalance(addresses);
+            console.log('btcProvider.getBalanceOnline:', balances);
+            if (balances.success) {
+                for (const i of balances.result) {
+                    result.push(i);
+                }
+                // result.concat(balances.result);
+                console.log('btcProvider balances.success(true):', result);
+            } else {
+                for (const addr of addresses) {
+                    result.push({ address: addr, balance: '0' });
+                }
+            }
+        } catch (error) {
+            for (const addr of addresses) {
+                result.push({ address: addr, balance: '0' });
+            }
+        }
+
+        return result;
     }
 
     private async getNotificationProp(address: string): Promise<{ urls: string[], uid: string }> {

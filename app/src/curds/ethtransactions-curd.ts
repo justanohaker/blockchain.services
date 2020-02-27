@@ -13,7 +13,7 @@ export class EthtransactionsCurd {
     async add(
         txId: string,
         blockHeight: number,
-        blockTime: number,
+        nonce: number,
         sender: string,
         recipient: string,
         amount: string
@@ -26,7 +26,7 @@ export class EthtransactionsCurd {
         const repo = new ETHTransaction();
         repo.txId = txId;
         repo.blockHeight = blockHeight;
-        repo.blockTime = blockTime;
+        repo.nonce = nonce;
         repo.sender = sender;
         repo.recipient = recipient;
         repo.amount = amount;

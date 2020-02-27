@@ -46,7 +46,8 @@ export type BalanceResp = {
  * BTC交易结构定义，可以从bitcoin获取交易后，填充此结构
  * @note 其它需要的字段根据后续需求定义
  */
-export class BitcoinTransaction {
+// export class BitcoinTransaction {
+export type BitcoinTransaction = {
     type: 'bitcoin';                // 比特币主网 - 标记
     sub: 'btc';                     // 比特币代币BTC - 标记
     txId: string;                   // 交易Id
@@ -64,19 +65,20 @@ export type BTCvOut = { address: string; amount: string; }
  * ETH交易结构定义，可以从ethereum获取交易后，填充此结构
  * @note 其它需要的字段根据后续需求定义
  */
-export class EthereumTransaction {
+// export class EthereumTransaction {
+export type EthereumTransaction = {
     type: 'ethereum';               // 以太坊主网 - 标记
     sub: 'eth';                     // 以太坊代币ETH - 标记
     txId: string;                   // 交易Id
     blockHeight: number;            // 交易打包高度
-    blockTime: number;              // 交易打包时间
+    nonce: number;                  // 交易次数
     sender: string;                 // 交易发送者地址
     recipient: string;              // 交易接收者地址
     amount: string;                 // 转账金额
 }
 
 // TEST: ERC20代币交易结构定义
-export class ERC20Transaction {
+export type ERC20Transaction = {
     type: 'ethereum-erc20';               // 以太坊主网 - 标记
     sub: 'etm';                     // 以太坊ERC20代币ETM - 标记
     // ...
