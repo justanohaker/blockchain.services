@@ -47,16 +47,15 @@ export class BtcService extends IService {
     private async monitor() {
         try {
             let chain = await this.getChain();
-            console.log('chain info==>:', chain)
-
             if (this.lastHash !== chain.hash) {
+                // console.log('chain info==>:', chain)
                 this.lastHash = chain.hash;
                 let block = await this.getLastBlock(chain.hash);
-                console.log('block info==>:', block.txids)
+                // console.log('block info==>:', block.txids)
 
                 for (let id of block.txids) {
                     let tx = await this.getTransaction(id);
-                    console.log('addresses==>:', tx.addresses)
+                    // console.log('addresses==>:', tx.addresses)
 
                     let txs = [];
                     for (let address in tx.addresses) {
