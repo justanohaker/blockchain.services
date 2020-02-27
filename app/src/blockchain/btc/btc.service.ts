@@ -16,10 +16,12 @@ const client = new Client({
     version: '0.18.0',
     agentOptions: {},
     wallet: ''
-})
+});
 
 @Injectable()
 export class BtcService extends IService {
+    private interval = null;
+    private lastHash = '';
     constructor() {
         super()
 
@@ -28,13 +30,73 @@ export class BtcService extends IService {
 
     // 启动监听数据变更
     async startMonitor() {
-
+        this.monitor();
+        this.interval = setInterval(() => {
+            this.monitor();
+        }, 60000);
     }
 
     // 停止监听数据变更
     async stopMonitor() {
+        if (this.interval !== null) {
+            clearInterval(this.interval)
+        }
 
     }
+
+    private async monitor() {
+        try {
+            let chain = await this.getChain();
+            console.log('chain info==>:', chain)
+
+            if (this.lastHash !== chain.hash) {
+                this.lastHash = chain.hash;
+                let block = await this.getLastBlock(chain.hash);
+                console.log('block info==>:', block.txids)
+
+                for (let id of block.txids) {
+                    let tx = await this.getTransaction(id);
+                    console.log('addresses==>:', tx.addresses)
+
+                    let txs = [];
+                    for (let address in tx.addresses) {
+                        if (this.validAddresses && this.validAddresses.includes(address)) {
+                            console.log('tx==>:', address, tx)
+                            txs.push(tx);
+                        }
+                    }
+                    this.provider.onNewTransaction(txs);
+                }
+            }
+        } catch (error) {
+            console.log(error)
+        }
+    }
+
+    private async getChain() {
+        let result = await axios.get('https://api.blockcypher.com/v1/btc/test3')
+        if (result.status !== 200 && result.status !== 201) {
+            throw new Error('get chain info error');
+        }
+        return result.data;
+    }
+
+    private async getLastBlock(hash: string) {
+        let result = await axios.get(`https://api.blockcypher.com/v1/btc/test3/blocks/${hash}`)
+        if (result.status !== 200 && result.status !== 201) {
+            throw new Error('get last block error');
+        }
+        return result.data;
+    }
+
+    private async getTransaction(id: string) {
+        let result = await axios.get(`https://api.blockcypher.com/v1/btc/test3/txs/${id}`)
+        if (result.status !== 200 && result.status !== 201) {
+            throw new Error('get transaction info error');
+        }
+        return result.data;
+    }
+
 
     /**
      * @note override
@@ -234,16 +296,12 @@ export class BtcService extends IService {
      * @param id - 交易id
      */
     async getTxInfo(id: string) {
-        let result: any;
-        axios.get('https://api.blockcypher.com/v1/btc/test3/txs/' + id)
-            .then((res: { data: any; }) => {
-                console.log(res.data);
-                result = res.data;
-            })
-            .catch((err: any) => {
-                return { success: false, error: err };
-            });
-        return { success: true, result };
+        try {
+            let result = await this.getTransaction(id);
+            return { success: true, result };
+        } catch (error) {
+            throw error;
+        }
     }
 
     async testBtcNode() {
