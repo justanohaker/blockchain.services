@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 
 import { bcryptHash } from '../libs/helpers/bcryptHelper';
@@ -21,8 +21,12 @@ import { AddWebHookDto } from './dtos/webhook.dto';
 import { BtcProvider } from '../provider/btc-provider/btc.provider';
 import { EthProvider } from '../provider/eth-provider/eth.provider';
 
+const TEST_USERNAME = 'entanmo_test';
+const TEST_PASSWORD = 'entanmo@test';
+const TEST_MNEMONIC = 'cave syrup rather injury exercise unit army burden matrix horn celery gas border churn wheat';
+
 @Injectable()
-export class UserService {
+export class UserService implements OnApplicationBootstrap {
     private readonly logger: Logger = new Logger("UserService", true);
 
     constructor(
@@ -37,6 +41,72 @@ export class UserService {
         private readonly ethProvider: EthProvider
 
     ) { }
+
+    async onApplicationBootstrap(): Promise<void> {
+        await this.registerForTest();
+    }
+
+    async registerForTest(): Promise<void> {
+        try {
+            const checkUserName = await this.hasUserName(TEST_USERNAME);
+            if (checkUserName) {
+                return;
+            }
+            const newUserId = await nanoidGenUserId();
+            await this.userbasicsCurd.add(
+                newUserId,
+                TEST_USERNAME,
+                await bcryptHash(TEST_PASSWORD)
+            );
+            const newSecret = TEST_MNEMONIC;
+            await this.secretsCurd.add(newUserId, newSecret);
+            // btc account
+            const btcPrivPub = await bipPrivpubFromMnemonic(
+                newSecret,
+                Platform.BITCOIN_TESTNET
+            );
+            const btcAddress = await bipGetAddressFromXPub(
+                Platform.BITCOIN_TESTNET,
+                btcPrivPub.xpub
+            );
+            await this.btcaccountsCurd.add(
+                newUserId,
+                btcPrivPub.xpriv,
+                btcPrivPub.xpub,
+                btcAddress
+            );
+            // TODO: update balance for new user
+            const btcBalance = await this.btcProvider.getBalanceOnline([btcAddress]);
+            await this.btcaccountsCurd.updateBalanceByAddress(btcAddress, btcBalance[0].balance);
+            // END TODO
+            // eth account
+            const ethPrivPub = await bipPrivpubFromMnemonic(
+                newSecret,
+                Platform.ETHEREUM,
+            );
+            const ethAddress = await bipGetAddressFromXPub(
+                Platform.ETHEREUM,
+                ethPrivPub.xpub
+            );
+            await this.ethaccountsCurd.add(
+                newUserId,
+                ethPrivPub.xpriv,
+                ethPrivPub.xpub,
+                ethAddress
+            );
+            // TODO: update balance for new user
+            const ethBalance = await this.ethProvider.getBalanceOnline([ethAddress]);
+            await this.ethaccountsCurd.updateBalanceByAddress(ethAddress, ethBalance[0].balance);
+            // END TODO
+
+            // onUserChanged
+            await this.ethProvider.onUserChanged();
+            await this.btcProvider.onUserChanged();
+        } catch (error) {
+            this.logger.log(`Exception: ${error}`);
+            throw error;
+        }
+    }
 
     async register(userName: string, password: string) {
         const newUserId = await nanoidGenUserId();
@@ -76,6 +146,7 @@ export class UserService {
             // TODO: update balance for new user
             const btcBalance = await this.btcProvider.getBalanceOnline([btcAddress]);
             await this.btcaccountsCurd.updateBalanceByAddress(btcAddress, btcBalance[0].balance);
+            // TODO: new user history transactions
             // END TODO
             // eth account
             const ethPrivPub = await bipPrivpubFromMnemonic(
@@ -95,6 +166,7 @@ export class UserService {
             // TODO: update balance for new user
             const ethBalance = await this.ethProvider.getBalanceOnline([ethAddress]);
             await this.ethaccountsCurd.updateBalanceByAddress(ethAddress, ethBalance[0].balance);
+            // TODO: new user history transactions
             // END TODO
 
             // onUserChanged
