@@ -25,17 +25,12 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
     private interval_count = 5//同时获取tx数量的异步数量
     private tx_cache: Array<string> = new Array();
 
-    private _reflushAddresses: string[] = [];
     constructor() {
         super();
         this.httpProvider = ethers.getDefaultProvider('ropsten');
         //new ethers.providers.JsonRpcProvider();//=http://127.0.0.1:8545
         let path = "m/44'/60'/1'/0/0";
         this.wallet = ethers.Wallet.fromMnemonic(this.mnemonic, path);
-
-        this.updateBalanceHandler = this.updateBalanceHandler.bind(this);
-
-        setTimeout(this.updateBalanceHandler, UPDATE_IDLE);
     }
 
     onModuleInit() {
@@ -50,12 +45,6 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
 
     onApplicationBootstrap() {
         this.startTx();
-    }
-
-    async onUpdateBalances(addresses: string[]): Promise<void> {
-        for (const address of addresses) {
-            this._reflushAddresses.push(address);
-        }
     }
 
     async startTx() {
@@ -200,25 +189,4 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
         )
         return { success: true, txId: tx.hash }
     }
-
-    private updateBalanceHandler() {
-        if (this._reflushAddresses.length <= 0) {
-            setTimeout(this.updateBalanceHandler, UPDATE_IDLE);
-            return;
-        }
-
-        const spliceSize = Math.min(this._reflushAddresses.length, MAX_UPDATE_ADDRESSES);
-        const addresses = this._reflushAddresses.splice(0, spliceSize);
-
-        this.getBalance(addresses)
-            .then((balances: BalanceResp) => {
-                if (this.provider && balances.success) {
-                    this.provider.onBalanceChanged(balances.result)
-                }
-            })
-            .finally(() => {
-                setTimeout(this.updateBalanceHandler, UPDATE_TIMEOUT);
-            });
-    }
-
 }

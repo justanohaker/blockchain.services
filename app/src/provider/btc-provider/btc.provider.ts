@@ -185,6 +185,10 @@ export class BtcProvider
                 vIns,
                 vOuts
             } = t;
+            console.log('BtcProvider.onNewTransaction:' +
+                `txId(${txId}), blockTime(${blockHeight})` +
+                `blockTime(${blockTime}), vIns(${JSON.stringify(vIns)})` +
+                `vOuts(${JSON.stringify(vOuts)})`);
             const addResult = await this.btcTransactionCurd.add(
                 txId,
                 blockHeight,
