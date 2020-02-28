@@ -25,7 +25,7 @@ export class BtcService extends IService {
     constructor() {
         super()
 
-        this.startMonitor()
+        // this.startMonitor()
     }
 
     // 启动监听数据变更
