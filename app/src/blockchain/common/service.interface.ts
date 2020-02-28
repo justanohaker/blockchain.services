@@ -83,9 +83,8 @@ export class IService {
                 if (this.provider && balances.success) {
                     this.provider.onBalanceChanged(balances.result);
                 }
-                setTimeout(this._updateBalanceHandler, UPDATE_TIMEOUT);
             })
-            .catch(error => {
+            .finally(() => {
                 setTimeout(this._updateBalanceHandler, UPDATE_TIMEOUT);
             });
     }
