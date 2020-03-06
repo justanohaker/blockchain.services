@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { NewWalletDto, balanceDto, sendCoinDto, transactionDto, TransferDef } from './eth.dto';
 import { EthService } from './eth.service';
 import { respSuccess, respFailure, RespErrorCode } from 'src/libs/responseHelper';
+import { FeePriority } from 'src/libs/types';
 
 @ApiTags("ethereum")
 @Controller('eth')
@@ -33,7 +34,8 @@ export class EthController {
                 address: "0xC4100A97dD815626E57A13886650060F914cc782"
             },
             address: "0x0Dd0C25B0a56564327aE70f0aeD805024084c35F",
-            amount: "1000000"
+            amount: "1000000",
+            feePriority: FeePriority.NORMAL
         });
         this.logger.log(`test transfer {${JSON.stringify(res4)}}`);
         return respSuccess(res);

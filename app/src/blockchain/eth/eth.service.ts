@@ -4,7 +4,7 @@ import { BalanceDef, BalanceResp, TransferDef, TransferResp, EthereumTransaction
 import { IService } from '../common/service.interface';
 import { IServiceProvider } from '../common/service.provider';
 import { ethers, utils } from 'ethers';
-import { EthaccountsCurd } from '../../curds/ethaccounts-curd';
+// import { EthaccountsCurd } from '../../curds/ethaccounts-curd';
 // const async= require('async');
 // var Web3 = require('web3');
 // var web3 = new Web3(new Web3.providers.HttpProvider("https://ropsten.infura.io/ "));
@@ -70,9 +70,9 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
                             recipient: tx.to,                   // 交易接收者地址
                             amount: tx.value.toString()         // 转账金额
                         }
-                        if (this.validAddresses && (
-                            this.validAddresses.includes(transaction.sender) ||
-                            this.validAddresses.includes(transaction.recipient)
+                        if (this.addresses && (
+                            this.addresses.includes(transaction.sender) ||
+                            this.addresses.includes(transaction.recipient)
                         )) {
                             console.log('[[[EthService loopTx]]] original tx:', JSON.stringify(tx));
                             console.log('[[[EthService loopTx]]]:', JSON.stringify(transaction));
@@ -181,6 +181,7 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
         let wallet2 = new ethers.Wallet(param.keyPair.privateKey);
         let signedTransaction = await wallet2.sign(transaction)
         let tx = await this.httpProvider.sendTransaction(signedTransaction)
+        console.log('tx:', tx);
         this.httpProvider.waitForTransaction(tx.hash, 1).then(
             (receipt) => {
                 let sendaddress = receipt.from

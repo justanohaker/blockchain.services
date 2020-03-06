@@ -11,7 +11,12 @@ export interface IServiceProvider {
      * 设置服务端有效地址列表变更时的通知
      * @param cb - 服务里有效用户地址列表变化后回调的函数
      */
-    setDirtyFn(cb: () => Promise<void>): Promise<void>;
+    // setDirtyFn(cb: () => Promise<void>): Promise<void>;
+
+    /**
+     * 
+     */
+    getAddresses(): Promise<string[]>;
 
     /**
      * 回调

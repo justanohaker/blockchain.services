@@ -32,7 +32,6 @@ export async function bipPrivpubFromSeed(
         b32 = fromSeed(seed, networks.bitcoin);
     }
 
-    console.log('platform:', platform);
     const deriveB32 = b32.derivePath(platform);
     const priv = deriveB32.privateKey.toString("hex");
     const pub = deriveB32.publicKey.toString("hex");
@@ -77,7 +76,6 @@ export async function bipGetAddressFromXPub(platform: Platform, xpub: string) {
         const b32 = fromBase58(xpub, networks.bitcoin);
         pubkey = b32.publicKey;
     }
-    console.log('bipGetAddressFromXpub:', platform);
 
     switch (platform) {
         case Platform.BITCOIN: {

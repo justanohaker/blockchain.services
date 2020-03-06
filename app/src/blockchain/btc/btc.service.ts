@@ -5,32 +5,38 @@ import { TransferDef, TransferResp, BalanceResp } from '../common/types';
 import { Buffer } from 'buffer';
 import { ECPair, networks, Psbt } from 'bitcoinjs-lib';
 import axios from 'axios';
-import Client = require('bitcoin-core');
 import { w3cwebsocket } from 'websocket';
+import Bignumber from 'bignumber.js'
 
+import Client = require('bitcoin-core');
 const client = new Client({
     host: '47.95.3.22',
     port: 8332,
+    network: 'regtest',
     username: 'entanmo_bitcoin',
-    password: 'Entanmo2020',
+    password: 'Entanmo2018',
     version: '0.18.0',
     agentOptions: {},
-    wallet: ''
+    wallet: 'sy'
 });
+const PRECISION = 1e-8;
 
 @Injectable()
 export class BtcService extends IService {
     private interval = null;
     private lastHash = '';
+
     constructor() {
         super()
 
-        // this.startMonitor()
+        setTimeout(() => {
+            this.startMonitor()
+        }, 1000)
     }
 
     // 启动监听数据变更
     async startMonitor() {
-        this.monitor();
+        await this.monitor();
         this.interval = setInterval(() => {
             this.monitor();
         }, 60000);
@@ -41,224 +47,62 @@ export class BtcService extends IService {
         if (this.interval !== null) {
             clearInterval(this.interval)
         }
-
     }
 
     private async monitor() {
         try {
-            let chain = await this.getChain();
-            if (this.lastHash !== chain.hash) {
-                // console.log('chain info==>:', chain)
-                this.lastHash = chain.hash;
-                let block = await this.getLastBlock(chain.hash);
-                // console.log('block info==>:', block.txids)
+            if (!this.addresses || this.addresses.length == 0) {// 没有需要监听的地址
+                return
+            }
+            // console.log('validAddresses =0=>', this.validAddresses)
 
-                for (let id of block.txids) {
-                    let tx = await this.getTransaction(id);
-                    // console.log('addresses==>:', tx.addresses)
+            let lastBlockHash = await client.command('getbestblockhash')
+            // console.log('lastBlockHash =1=>', lastBlockHash)
 
-                    let txs = [];
-                    for (let address in tx.addresses) {
-                        if (this.validAddresses && this.validAddresses.includes(address)) {
-                            console.log('tx==>:', address, tx)
-                            txs.push(tx);
+            if (this.lastHash && this.lastHash === lastBlockHash) {// 没有更新区块
+                return
+            }
+
+            this.lastHash = lastBlockHash;
+            let block = await client.command('getblock', lastBlockHash)
+            // console.log('getblock =2=>', block)
+            for (let id of block.tx) {
+                // console.log('txId =3=>', id)
+                let tx = await client.command('getrawtransaction', id, true)
+                // console.log('txId =4=>', tx)
+                let txs = [];
+                for (let vin of tx.vin) {
+                    // console.log('vin =5=>', vin)
+                    if (vin.scriptPubKey && vin.scriptPubKey.addresses) {
+                        for (let address of vin.scriptPubKey.addresses) {
+                            // console.log('scriptPubKey =6=>', vin.scriptPubKey)
+                            if (this.addresses && this.addresses.includes(address)) {
+                                console.log('tx =7=>:', address, tx)
+                                txs.push(tx);
+                            }
                         }
                     }
+                }
+                for (let vout of tx.vout) {
+                    // console.log('vout =5=>', vout)
+                    if (vout.scriptPubKey && vout.scriptPubKey.addresses) {
+                        for (let address of vout.scriptPubKey.addresses) {
+                            // console.log('scriptPubKey =6=>', vout.scriptPubKey)
+                            if (this.addresses && this.addresses.includes(address)) {
+                                console.log('tx =7=>:', address, tx)
+                                txs.push(tx);
+                            }
+                        }
+                    }
+                }
+
+                if (txs.length > 0) {
                     this.provider.onNewTransaction(txs);
                 }
             }
         } catch (error) {
             console.log(error)
         }
-    }
-
-    private async getChain() {
-        let result = await axios.get('https://api.blockcypher.com/v1/btc/test3')
-        if (result.status !== 200 && result.status !== 201) {
-            throw new Error('get chain info error');
-        }
-        return result.data;
-    }
-
-    private async getLastBlock(hash: string) {
-        let result = await axios.get(`https://api.blockcypher.com/v1/btc/test3/blocks/${hash}`)
-        if (result.status !== 200 && result.status !== 201) {
-            throw new Error('get last block error');
-        }
-        return result.data;
-    }
-
-    private async getTransaction(id: string) {
-        let result = await axios.get(`https://api.blockcypher.com/v1/btc/test3/txs/${id}`)
-        if (result.status !== 200 && result.status !== 201) {
-            throw new Error('get transaction info error');
-        }
-        return result.data;
-    }
-
-
-    /**
-     * @note override
-     * @param data 
-     */
-    async transfer(data: TransferDef): Promise<TransferResp> {
-        let result = await this.transferByPsbt(data);
-        console.log(result)
-        return { success: true, txId: result };
-    }
-
-    // 通过交易签名方式创建交易
-    private async transferBySign(data: TransferDef) {
-        let result: any;
-        const newtx = {
-            inputs: [{ addresses: [data.keyPair.address] }],
-            outputs: [{ addresses: [data.address], value: Number(data.amount) }]
-        };
-        let keys = ECPair.fromPrivateKey(Buffer.from(data.keyPair.privateKey, 'hex'), { network: networks.testnet });
-
-        await axios.post('https://api.blockcypher.com/v1/btc/test3/txs/new', newtx)
-            .then(async res => {
-                console.log(res.data);
-                // signing each of the hex-encoded string required to finalize the transaction
-                const tmptx = res.data;
-                tmptx.pubkeys = [];
-                tmptx.signatures = tmptx.tosign.map((tosign: string) => {
-                    tmptx.pubkeys.push(keys.publicKey.toString("hex"));
-                    return keys.sign(Buffer.from(tosign, "hex")).toString("hex");
-                });
-                console.log(tmptx)
-
-                // sending back the transaction with all the signatures to broadcast
-                // await axios.post('https://api.blockcypher.com/v1/btc/test3/txs/send', tmptx)
-                //     .then((res: any) => {
-                //         console.log('2222222222222222222222222', res.data);
-                //         result = res;
-                //     })
-                //     .catch((err: any) => {
-                //         console.log('333333333333333333333333333333', err)
-                //         return { success: false, error: err };
-                //     });
-            })
-            .catch(err => {
-                console.log(err)
-                return { success: false, error: err };
-            });
-        return { success: true, txId: result };
-    }
-
-    // 通过Psbt方式创建交易
-    private async transferByPsbt(data: TransferDef) {
-        try {
-            let tmptx = await this.buildTransaction(data.keyPair.address, data.address, Number(data.amount));
-            let inputs = await this.getInputs(tmptx.tx.inputs);
-            let outputs = await this.getOutputs(tmptx.tx.outputs);
-            let txHex = await this.buildPsbt(inputs, outputs, data.keyPair.privateKey);
-            let pushHash = await this.broadcastTx(txHex);
-            return pushHash;
-        } catch (error) {
-            throw error;
-        }
-    }
-
-    private async buildTransaction(sender: string, recipient: string, amount: number): Promise<any> {
-        const body = {
-            inputs: [{ addresses: [sender] }],
-            outputs: [{ addresses: [recipient], value: amount }]
-        };
-
-        try {
-            const buildResp = await axios.post(
-                'https://api.blockcypher.com/v1/btc/test3/txs/new',
-                JSON.stringify(body)
-            );
-            if (buildResp.status !== 200 &&
-                buildResp.status !== 201) {
-                throw new Error()
-            }
-
-            return buildResp.data;
-        } catch (error) {
-            throw error;
-        }
-    }
-
-    private async getInputs(inputs: any[]): Promise<any[]> {
-        const result = [];
-        try {
-            for (const i of inputs) {
-                const txInfoUrl = `https://api.blockcypher.com/v1/btc/test3/txs/${i.prev_hash}`;
-                // console.log('txInfoUrl:', txInfoUrl);
-                const txGet = await axios.get(txInfoUrl, {
-                    params: { includeHex: true }
-                });
-                if (txGet.status !== 200 &&
-                    txGet.status !== 201) {
-                    throw new Error();
-                }
-
-                // console.log('trHex:', txGet.data.hex);
-                const input = {
-                    hash: i.prev_hash,
-                    index: i.output_index,
-                    sequence: i.sequence,
-                    nonWitnessUtxo: Buffer.from(txGet.data.hex, 'hex')
-                };
-                result.push(input);
-            }
-        } catch (error) {
-            throw error;
-        }
-
-        return result;
-    }
-
-    private async getOutputs(outputs: any[]): Promise<any[]> {
-        const result = [];
-
-        for (const o of outputs) {
-            for (const oo of o.addresses) {
-                const output = {
-                    address: oo,
-                    value: o.value
-                };
-                result.push(output);
-            }
-        }
-
-        return result;
-    }
-
-    private async buildPsbt(inputs: any[], outputs: any[], privateKey: string): Promise<string> {
-        const ecPair = ECPair.fromPrivateKey(Buffer.from(privateKey, 'hex'), { network: networks.testnet });
-        const psbt = new Psbt({ network: networks.testnet });
-
-        psbt.addInputs(inputs);
-        psbt.addOutputs(outputs);
-
-        // psbt.signAllInputs(ecPair);
-        for (let i = 0; i < inputs.length; i++) {
-            psbt.signInput(i, ecPair);
-        }
-        for (let i = 0; i < inputs.length; i++) {
-            psbt.validateSignaturesOfInput(i);
-        }
-        // psbt.validateSignaturesOfAllInputs();
-        psbt.finalizeAllInputs();
-        const tr = psbt.extractTransaction();
-        return tr.toHex();
-    }
-
-    private async broadcastTx(txHex: string): Promise<string> {
-        const pushResult = await axios.post(
-            'https://api.blockcypher.com/v1/btc/test3/txs/push',
-            { tx: txHex }
-        );
-        if (pushResult.status !== 200 &&
-            pushResult.status !== 201) {
-            throw new Error();
-        }
-        // console.log('pushData:', pushResult.data);
-        return pushResult.data.tx.hash;
     }
 
     /**
@@ -269,24 +113,33 @@ export class BtcService extends IService {
     async getBalance(addresses: string[]): Promise<BalanceResp> {
         const result: BalanceResp = { success: true, result: [] };
 
+        let groupsList = await client.command('listaddressgroupings')
+        // console.log('listaddressgroupings ==>', groupsList)
         for (const address of addresses) {
+            let info = { address: address, balance: '0' }
             try {
-                const btcBalanceResp = await axios.get(`https://api.blockcypher.com/v1/btc/test3/addrs/${address}/balance`);
-                if (btcBalanceResp.status !== 200 &&
-                    btcBalanceResp.status !== 201) {
-                    throw new Error();
+                for (let groups of groupsList) {
+                    for (let group of groups) {
+                        if (group.includes(address)) {
+                            info.balance = group[1].toString();
+                        }
+                    }
                 }
-                const respData = btcBalanceResp.data;
-                result.result.push({
-                    address: respData.address,
-                    balance: respData.balance
-                });
             } catch (error) {
-                result.result.push({ address: address, balance: '0' });
+                console.log(error);
             }
+            result.result.push(info);
         }
-
+        // console.log('getbalance ==>', result)
         return result;
+    }
+
+    async importAddress(address: string) {
+        try {
+            await client.command('importaddress', address, '', true)
+        } catch (error) {
+            // do nothing
+        }
     }
 
     /**
@@ -296,40 +149,83 @@ export class BtcService extends IService {
      */
     async getTxInfo(id: string) {
         try {
-            let result = await this.getTransaction(id);
-            return { success: true, result };
+            let tx = await client.command('getrawtransaction', id, true)
+            return { success: true, result: tx };
         } catch (error) {
             throw error;
         }
     }
 
-    async testBtcNode() {
-        // let b = await client.getNewAddress()
-        // let b = await client.getAddressInfo('33Yfjnqhr6F3vZEmj1iMAcAXN5Y2mL2Fi4')
-        let b = await client.getBalance()
-        console.log(b)
+    /**
+     * @note override
+     * @param data 
+     */
+    async transfer(data: TransferDef): Promise<TransferResp> {
+        let result = await this.transferByPsbt(data);
+        // console.log(result)
+        return { success: true, txId: result };
     }
 
-    async testWs() {
-        var ws = new w3cwebsocket("wss://socket.blockcypher.com/v1/btc/test3");
-        ws.onopen = () => {
-            console.log('WebSocket Connected');
-            if (ws.readyState === ws.OPEN) {
-                ws.send(JSON.stringify({ event: "new-block" }));
+    private async transferByPsbt(data: TransferDef) {
+        try {
+            // 读取为花费交易列表
+            let unspents = await client.command('listunspent', 1, 9999, [data.keyPair.address])
+            // console.log('listunspent ==>', unspents)
+
+            // 组织psbt数据
+            let psbt = new Psbt({ network: networks.testnet });
+
+            let total = new Bignumber(0);
+            let fee = new Bignumber(this.getFee());
+            let amount = new Bignumber(data.amount);
+            let trans = amount.plus(fee);
+            let rest = new Bignumber(0);
+            for (let unspent of unspents) {
+                let txHex = await client.command('getrawtransaction', { txid: unspent.txid });
+                psbt.addInput({
+                    hash: unspent.txid,
+                    index: unspent.vout,
+                    nonWitnessUtxo: Buffer.from(txHex, 'hex')
+                });
+
+                total = total.plus(new Bignumber(unspent.amount).div(PRECISION));
+                if (total.gt(trans)) {
+                    rest = total.minus(trans);
+                    // console.log(total.toNumber(), amount.toNumber(), rest.toNumber(), trans.toNumber(), rest.toNumber())
+                    break;
+                }
             }
-            console.log(ws.readyState);
+            psbt.addOutput({
+                address: data.address,
+                value: amount.toNumber()
+            });
+            if (rest.times(PRECISION).toNumber() > 0) {
+                psbt.addOutput({
+                    address: data.keyPair.address,
+                    value: rest.toNumber()
+                });
+            }
+
+            // 签名psbt
+            const ecpair = ECPair.fromPrivateKey(Buffer.from(data.keyPair.privateKey, 'hex'), { network: networks.testnet });
+            psbt.signAllInputs(ecpair);
+            psbt.validateSignaturesOfAllInputs();
+            psbt.finalizeAllInputs();
+            const psbtHash = psbt.extractTransaction().toHex();
+            // console.log('psbtHash ==>',psbtHash)
+
+            //发送交易
+            let txHash = await client.command('sendrawtransaction', psbtHash);
+            // console.log('sendrawtransaction ==>', txHash)
+
+            return txHash;
+        } catch (error) {
+            throw error;
         }
-        ws.onmessage = event => {
-            console.log(event.data)
-            var tx = JSON.parse(event.data.toString());
-            console.log(tx)
-        }
-        ws.onerror = error => {
-            console.log(error)
-        }
-        ws.onclose = () => {
-            console.log('WebSocket Closed');
-        };
     }
 
+    // 手续费计算
+    private getFee() {
+        return 500;
+    }
 }
