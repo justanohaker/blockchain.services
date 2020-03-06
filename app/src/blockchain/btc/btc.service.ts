@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { IService } from '../common/service.interface';
-import { TransferDef, TransferResp, BalanceResp } from '../common/types';
+import { TransferDef, TransferResp, BalanceResp, BitcoinTransaction } from '../common/types';
 
 import { Buffer } from 'buffer';
 import { ECPair, networks, Psbt } from 'bitcoinjs-lib';
@@ -9,6 +9,7 @@ import { w3cwebsocket } from 'websocket';
 import Bignumber from 'bignumber.js'
 
 import Client = require('bitcoin-core');
+import { FeePriority } from 'src/libs/types';
 const client = new Client({
     host: '47.95.3.22',
     port: 8332,
@@ -54,11 +55,10 @@ export class BtcService extends IService {
             if (!this.addresses || this.addresses.length == 0) {// 没有需要监听的地址
                 return
             }
-            // console.log('validAddresses =0=>', this.validAddresses)
+            // console.log('addresses =0=>', this.addresses)
 
             let lastBlockHash = await client.command('getbestblockhash')
             // console.log('lastBlockHash =1=>', lastBlockHash)
-
             if (this.lastHash && this.lastHash === lastBlockHash) {// 没有更新区块
                 return
             }
@@ -66,19 +66,39 @@ export class BtcService extends IService {
             this.lastHash = lastBlockHash;
             let block = await client.command('getblock', lastBlockHash)
             // console.log('getblock =2=>', block)
-            for (let id of block.tx) {
-                // console.log('txId =3=>', id)
-                let tx = await client.command('getrawtransaction', id, true)
-                // console.log('txId =4=>', tx)
-                let txs = [];
+
+            let txs = [];
+            for (let txid of block.tx) {
+                let tx = await client.command('getrawtransaction', txid, true)
+                // console.log('txId =3=>', tx, JSON.stringify(tx))
+
+                let btcTx: BitcoinTransaction = {
+                    type: 'bitcoin',
+                    sub: 'btc',
+                    txId: tx.txid,
+                    blockHeight: block.height,
+                    blockTime: tx.blocktime,
+                    vIns: [],
+                    vOuts: []
+                };
+                let isRelative = false;
                 for (let vin of tx.vin) {
-                    // console.log('vin =5=>', vin)
-                    if (vin.scriptPubKey && vin.scriptPubKey.addresses) {
-                        for (let address of vin.scriptPubKey.addresses) {
-                            // console.log('scriptPubKey =6=>', vin.scriptPubKey)
-                            if (this.addresses && this.addresses.includes(address)) {
-                                console.log('tx =7=>:', address, tx)
-                                txs.push(tx);
+                    // console.log('vin =4=>', vin)
+                    if (vin.txid) {
+                        let txVin = await client.command('getrawtransaction', vin.txid, true)
+                        for (let vout of txVin.vout) {
+                            // console.log('vout =5=>', vout)
+                            if (vout.scriptPubKey && vout.scriptPubKey.addresses) {
+                                for (let address of vout.scriptPubKey.addresses) {
+                                    // console.log('scriptPubKey =6=>', vout.scriptPubKey)
+                                    btcTx.vIns.push({
+                                        address: address,
+                                        amount: (new Bignumber(vout.value).div(PRECISION)).toString()
+                                    });
+                                    if (this.addresses && this.addresses.includes(address)) {
+                                        isRelative = true;
+                                    }
+                                }
                             }
                         }
                     }
@@ -88,20 +108,38 @@ export class BtcService extends IService {
                     if (vout.scriptPubKey && vout.scriptPubKey.addresses) {
                         for (let address of vout.scriptPubKey.addresses) {
                             // console.log('scriptPubKey =6=>', vout.scriptPubKey)
+                            btcTx.vOuts.push({
+                                address: address,
+                                amount: (new Bignumber(vout.value).div(PRECISION)).toString()
+                            });
                             if (this.addresses && this.addresses.includes(address)) {
-                                console.log('tx =7=>:', address, tx)
-                                txs.push(tx);
+                                isRelative = true;
                             }
                         }
                     }
                 }
-
-                if (txs.length > 0) {
-                    this.provider.onNewTransaction(txs);
+                if (isRelative) {
+                    txs.push(btcTx);
+                    console.log('tx =7=>:', btcTx)
                 }
+            }
+            if (txs.length > 0) {
+                this.provider.onNewTransaction(txs);
             }
         } catch (error) {
             console.log(error)
+        }
+    }
+
+    async onNewAccounts(addresses: string[]): Promise<void> {
+        await super.onNewAccounts(addresses);
+
+        try {
+            for (let address of addresses) {
+                await client.command('importaddress', address, '', true)
+            }
+        } catch (error) {
+            // do nothing
         }
     }
 
@@ -134,14 +172,6 @@ export class BtcService extends IService {
         return result;
     }
 
-    async importAddress(address: string) {
-        try {
-            await client.command('importaddress', address, '', true)
-        } catch (error) {
-            // do nothing
-        }
-    }
-
     /**
      * @note override
      * 查询交易信息
@@ -169,14 +199,14 @@ export class BtcService extends IService {
     private async transferByPsbt(data: TransferDef) {
         try {
             // 读取为花费交易列表
-            let unspents = await client.command('listunspent', 1, 9999, [data.keyPair.address])
+            let unspents = await client.command('listunspent', 1, 9999, [data.keyPair.address]);
             // console.log('listunspent ==>', unspents)
 
             // 组织psbt数据
             let psbt = new Psbt({ network: networks.testnet });
-
+            let getfee = await this.getFee(data.feePriority);
+            let fee = new Bignumber(getfee);
             let total = new Bignumber(0);
-            let fee = new Bignumber(this.getFee());
             let amount = new Bignumber(data.amount);
             let trans = amount.plus(fee);
             let rest = new Bignumber(0);
@@ -225,7 +255,7 @@ export class BtcService extends IService {
     }
 
     // 手续费计算
-    private getFee() {
+    private async getFee(fee: FeePriority) {
         return 500;
     }
 }
