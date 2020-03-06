@@ -7,12 +7,12 @@ const MAX_UPDATE_ADDRESSES = 10;
 
 export class IService {
     protected provider?: IServiceProvider;
-    protected validAddresses: string[];
+    protected addresses: string[];
     private _updateAddresses: string[];
 
     constructor() {
+        this.addresses = [];
         this._updateAddresses = [];
-        this.onDirty = this.onDirty.bind(this);
 
         this._updateBalanceHandler = this._updateBalanceHandler.bind(this);
         setTimeout(this._updateBalanceHandler, UPDATE_IDLE);
@@ -22,17 +22,23 @@ export class IService {
      * 设置provider - 用于处理一个回调或服务端信息获取
      * @param provider - IServiceProvider
      */
-    setProvider(provider: IServiceProvider): void {
+    async setProvider(provider: IServiceProvider): Promise<void> {
         this.provider = provider;
-        this.provider.setDirtyFn(this.onDirty);
+
+        this.addresses = await this.provider.getAddresses();
     }
 
-    /**
-     * @note 需要其它逻辑处理，请重载此方法
-     */
-    async onDirty(): Promise<void> {
-        this.validAddresses = await this.provider.getValidAddresses();
-        // TODO: other logic implemented by subclass
+    // /**
+    //  * @note 需要其它逻辑处理，请重载此方法
+    //  */
+    // async onDirty(): Promise<void> {
+    //     this.addresses = await this.provider.getAddresses();
+    //     // TODO: other logic implemented by subclass
+    // }
+
+    async onNewAccounts(addresses: string[]): Promise<void> {
+        // TODO
+        this.addresses = await this.provider.getAddresses();
     }
 
     /**

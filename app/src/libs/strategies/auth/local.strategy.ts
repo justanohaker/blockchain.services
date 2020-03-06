@@ -1,30 +1,36 @@
-import { Strategy, IStrategyOptions } from 'passport-local';
-import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
-import { UserbasicsCurd } from '../../../curds/userbasics-curd';
-import { bcryptCompare } from 'src/libs/helpers/bcryptHelper';
-import { respFailure, RespErrorCode } from 'src/libs/responseHelper';
+import { Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
+import { PassportStrategy } from '@nestjs/passport';
+import { Strategy, IStrategyOptions } from 'passport-local';
+import { bcryptCompare } from '../../helpers/bcryptHelper';
+import { respFailure, RespErrorCode } from '../../responseHelper';
+import { Client } from '../../../models/clients.model';
 
 @Injectable()
 export class LocalStrategy extends PassportStrategy(Strategy) {
     constructor(
-        private readonly userbasicCurd: UserbasicsCurd
+        @InjectRepository(Client) private readonly clientRepo: Repository<Client>
     ) {
         super({
-            usernameField: 'username',
-            passwordField: 'password'
+            usernameField: 'client',
+            passwordField: 'secret'
         } as IStrategyOptions);
     }
 
-    async validate(userName: string, password: string): Promise<any> {
-        const findResult = await this.userbasicCurd.getByUserName(userName);
-        if (findResult && await bcryptCompare(password, findResult.password)) {
-            const { password, id, ...result } = findResult;
-            return result;
+    async validate(client: string, secret: string): Promise<any> {
+        const clientRepo = await this.clientRepo.findOne({ client });
+        if (clientRepo) {
+            if (secret === clientRepo.secret) {
+                const { secret, ...result } = clientRepo;
+                return result;
+            }
+
+            // TODO
         }
 
         throw new HttpException(
-            respFailure(RespErrorCode.UNAUTHORIZED, '登陆信息错误'),
+            respFailure(RespErrorCode.UNAUTHORIZED, 'Request Error!'),
             HttpStatus.OK
         );
     }

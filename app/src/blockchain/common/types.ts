@@ -1,3 +1,4 @@
+import { FeePriority } from '../../libs/types';
 /**
  * 账号KeyPair
  */
@@ -13,6 +14,7 @@ export type TransferDef = {
     keyPair: AccountKeyPair;    // 转账sender
     address: string;            // 转账recipient
     amount: string;             // 转账金额:各平台的最小单位(sotasi)
+    feePriority: FeePriority;   // 转账交易费等级(high, normal, lower)
 }
 
 /**

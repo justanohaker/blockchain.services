@@ -30,6 +30,12 @@ export const enum RespErrorCode {
     HTTP_VERSION_NOT_SUPPORTED = 505,
 };
 
+export class ResponseBase {
+    success: boolean;
+    error?: string;
+    errorCode?: RespErrorCode;
+}
+
 export function respSuccess(data: any): Object {
     return {
         success: true,

@@ -1,54 +1,49 @@
 import { Module } from '@nestjs/common';
-import { UserModule } from './user/user.module';
-import { TransactionModule } from './transaction/transaction.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { UserBasic } from './entities/user_basic.entity';
-import { User } from './entities/users.entity';
-import { Secret } from './entities/secrets.entity';
-import { Webhook } from './entities/webhooks.entity';
-import { BTCAccount } from './entities/btc_accounts.entity';
-import { BTCTransaction } from './entities/btc_trs.entity';
-import { BTCTransactionIndex } from './entities/btc_trs_index.entity';
-import { ETHAccount } from './entities/eth_accounts.entity';
-import { ETHTransaction } from './entities/eth_trs.entity';
-
 import { AppConfig } from './config/app.config';
-import { BlockchainModule } from './blockchain/blockchain.module';
-import { ProviderModule } from './provider/provider.module';
-import { EthModule } from './blockchain/eth/eth.module';
-import { BtcModule } from './blockchain/btc/btc.module';
-import { NotifierModule } from './notifier/notifier.module';
 
+import { AuthModule } from './modules/auth/auth.module';
+import { WalletModule } from './modules/wallet/wallet.module';
+import { NotificationModule } from './modules/notification/notification.module';
+import { PusherModule } from './modules/pusher/pusher.module';
+
+// models
+import { Client } from './models/clients.model';
+import { ChainSecret } from './models/chain.secret.model';
+import { User } from './models/users.model';
+import { Webhook } from './models/user.webhook.model';
+
+import { AccountBTC } from './models/accounts.btc.model';
+import { TransactionBTC, TransactionBTCIndex } from './models/transactions.btc.model';
+
+import { AccountETH } from './models/accounts.eth.model';
+import { TransactionETH } from './models/transactions.eth.model';
+// end models
 
 @Module({
-  imports: [
-    TypeOrmModule.forRoot({
-      type: "sqlite",
-      database: AppConfig.Sqlite_Db_Name,
-      synchronize: true,
-      entities: [
-        UserBasic,
-        User,
-        Secret,
-        Webhook,
-        BTCAccount,
-        BTCTransaction,
-        BTCTransactionIndex,
-        ETHAccount,
-        ETHTransaction
-      ]
-    }),
-    UserModule,
-    EthModule,
-    BtcModule,
-    TransactionModule,
-    ProviderModule,
-    BlockchainModule,
-    NotifierModule,
-  ],
-  controllers: [],
-  providers: [],
-  exports: []
+    imports: [
+        TypeOrmModule.forRoot({
+            type: "sqlite",
+            database: AppConfig.Sqlite_Db_Name,
+            synchronize: true,
+            entities: [
+                Client,
+                ChainSecret,
+                User,
+                Webhook,
+                AccountBTC,
+                TransactionBTC,
+                TransactionBTCIndex,
+                AccountETH,
+                TransactionETH
+            ]
+        }),
+
+        AuthModule,
+        WalletModule,
+        NotificationModule,
+        PusherModule
+    ]
 })
 export class AppModule { }

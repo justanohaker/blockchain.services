@@ -51,7 +51,7 @@ export class BtcService extends IService {
 
     private async monitor() {
         try {
-            if (!this.validAddresses || this.validAddresses.length == 0) {// 没有需要监听的地址
+            if (!this.addresses || this.addresses.length == 0) {// 没有需要监听的地址
                 return
             }
             // console.log('validAddresses =0=>', this.validAddresses)
@@ -76,7 +76,7 @@ export class BtcService extends IService {
                     if (vin.scriptPubKey && vin.scriptPubKey.addresses) {
                         for (let address of vin.scriptPubKey.addresses) {
                             // console.log('scriptPubKey =6=>', vin.scriptPubKey)
-                            if (this.validAddresses && this.validAddresses.includes(address)) {
+                            if (this.addresses && this.addresses.includes(address)) {
                                 console.log('tx =7=>:', address, tx)
                                 txs.push(tx);
                             }
@@ -88,7 +88,7 @@ export class BtcService extends IService {
                     if (vout.scriptPubKey && vout.scriptPubKey.addresses) {
                         for (let address of vout.scriptPubKey.addresses) {
                             // console.log('scriptPubKey =6=>', vout.scriptPubKey)
-                            if (this.validAddresses && this.validAddresses.includes(address)) {
+                            if (this.addresses && this.addresses.includes(address)) {
                                 console.log('tx =7=>:', address, tx)
                                 txs.push(tx);
                             }
