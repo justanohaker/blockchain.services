@@ -191,9 +191,13 @@ export class BtcService extends IService {
      * @param data 
      */
     async transfer(data: TransferDef): Promise<TransferResp> {
-        let result = await this.transferByPsbt(data);
-        // console.log(result)
-        return { success: true, txId: result };
+        try {
+            let result = await this.transferByPsbt(data);
+            // console.log(result)
+            return { success: true, txId: result };
+        } catch (error) {
+            return { success: false, error };
+        }
     }
 
     private async transferByPsbt(data: TransferDef) {
