@@ -36,10 +36,10 @@ export class BtcProvider implements IChainProvider, IServiceProvider, OnApplicat
     ) { }
 
     async onApplicationBootstrap(): Promise<void> {
-        await this.btcService.setProvider(this);
+        this.btcService.setProvider(this);
 
         const allAddresses = await this.getAddresses();
-        await this.btcService.onUpdateBalances(allAddresses);
+        this.btcService.onUpdateBalances(allAddresses);
     }
 
     // implement IChainProvider
@@ -98,7 +98,9 @@ export class BtcProvider implements IChainProvider, IServiceProvider, OnApplicat
 
         const result: string[] = [];
         for (const repo of repos) {
-            result.push(repo.txId);
+            if (!result.includes(repo.txId)) {
+                result.push(repo.txId);
+            }
         }
         return result;
     }
@@ -132,19 +134,16 @@ export class BtcProvider implements IChainProvider, IServiceProvider, OnApplicat
         }
 
         const accountRepo = await this.accountRepo.findOne({ clientId, accountId });
-
         const keyPair = {
             privateKey: await bipHexPrivFromxPriv(accountRepo.privkey, Platform.BITCOIN_TESTNET),
             address: accountRepo.address
         };
-
         const transferResult = await this.btcService.transfer({
             keyPair,
             address: toAddress,
             amount,
             feePriority
         });
-
         if (!transferResult.success) {
             throw new Error(
                 typeof transferResult.error! === 'string'
@@ -171,8 +170,8 @@ export class BtcProvider implements IChainProvider, IServiceProvider, OnApplicat
     }
 
     async onNewAccount(accounts: string[]): Promise<void> {
-        await this.btcService.onNewAccounts(accounts);
-        await this.btcService.onUpdateBalances(accounts);
+        this.btcService.onNewAccounts(accounts);
+        this.btcService.onUpdateBalances(accounts);
         // TODO: pusher new Account
         for (const account of accounts) {
             const accountRepo = await this.accountRepo.findOne({ address: account });
@@ -182,7 +181,7 @@ export class BtcProvider implements IChainProvider, IServiceProvider, OnApplicat
                     accountRepo.accountId
                 );
                 for (const webhook of webhooks) {
-                    await this.pusherService.addPush(webhook.postUrl, {
+                    this.pusherService.addPush(webhook.postUrl, {
                         type: PushEventType.AccountNew,
                         platform: PushPlatform.BTC,
                         data: {
@@ -207,10 +206,6 @@ export class BtcProvider implements IChainProvider, IServiceProvider, OnApplicat
         return addresses;
     }
 
-    async getValidAddresses(): Promise<string[]> {
-        return await this.getAddresses();
-    }
-
     async onBalanceChanged(newBalances: BalanceDef[]): Promise<void> {
         console.log('[BtcProvider] onBalanceChange:', JSON.stringify(newBalances, null, 2));
         for (const bln of newBalances) {
@@ -222,7 +217,7 @@ export class BtcProvider implements IChainProvider, IServiceProvider, OnApplicat
             // TODO: push balance changed notification
             const webhooks = await this.getWebHooks(repo.clientId, repo.accountId);
             for (const webhook of webhooks) {
-                await this.pusherService.addPush(webhook.postUrl, {
+                this.pusherService.addPush(webhook.postUrl, {
                     type: PushEventType.BalanceUpdate,
                     platform: PushPlatform.BTC,
                     data: {
@@ -243,19 +238,19 @@ export class BtcProvider implements IChainProvider, IServiceProvider, OnApplicat
                 //TODO: Unsupported!!
                 continue;
             }
-
             const repos = await this.addTransaction(tr);
             if (!repos) {
                 continue;
             }
-
             const addresses: string[] = [];
             // TODO: push new transaction notification
             for (const repo of repos) {
-                addresses.push(repo.address);
+                if (!addresses.includes(repo.address)) {
+                    addresses.push(repo.address);
+                }
                 const webhooks = await this.getWebHooks(repo.clientId, repo.accountId);
                 for (const webhook of webhooks) {
-                    await this.pusherService.addPush(webhook.postUrl, {
+                    this.pusherService.addPush(webhook.postUrl, {
                         type: PushEventType.TransactionConfirmed,
                         platform: PushPlatform.BTC,
                         data: {
@@ -307,46 +302,39 @@ export class BtcProvider implements IChainProvider, IServiceProvider, OnApplicat
     private async addTransaction(tr: BitcoinTransaction): Promise<AccountBTC[]> {
         const inAddresses: string[] = [];
         for (const vin of tr.vIns) {
-            inAddresses.push(vin.address);
+            !inAddresses.includes(vin.address)
+                && inAddresses.push(vin.address);
         }
         const outAddresses: string[] = [];
         for (const vout of tr.vOuts) {
-            outAddresses.push(vout.address);
+            !outAddresses.includes(vout.address)
+                && outAddresses.push(vout.address);
         };
 
-        const repos: AccountBTC[] = [];
+        const inRepos: AccountBTC[] = [];
         for (const address of inAddresses) {
             const accountRepo = await this.accountRepo.findOne({ address });
             if (accountRepo) {
-                repos.push(accountRepo);
+                inRepos.push(accountRepo);
             }
         }
+        const outRepos: AccountBTC[] = [];
         for (const address of outAddresses) {
             const accountRepo = await this.accountRepo.findOne({ address });
             if (accountRepo) {
-                repos.push(accountRepo);
+                outRepos.push(accountRepo);
             }
         }
-        if (repos.length <= 0) {
+
+        // no invalid account
+        if (inRepos.length <= 0 && outRepos.length <= 0) {
             return null;
         }
 
-        const resultRepos: AccountBTC[] = [];
-        const trRepo = this.trRepo.findOne({ txId: tr.txId });
-        if (trRepo) {
-            // found, so maybe with new address
-            for (const repo of repos) {
-                const indexRepo = await this.trIndexRepo.findOne({ txId: tr.txId, address: repo.address });
-                if (!indexRepo) {
-                    const indexIns = new TransactionBTCIndex();
-                    indexIns.txId = tr.txId;
-                    indexIns.address = repo.address;
-                    indexIns.sender = inAddresses.includes(repo.address) ? true : false;
-                    await this.trIndexRepo.save(indexIns);
-                    resultRepos.push(repo);
-                }
-            }
-        } else {
+        const filter: AccountBTC[] = [];
+        const trRepo = await this.trRepo.findOne({ txId: tr.txId });
+        if (!trRepo) {
+            // add transaction
             const trIns = new TransactionBTC();
             trIns.txId = tr.txId;
             trIns.blockHeight = tr.blockHeight;
@@ -354,17 +342,72 @@ export class BtcProvider implements IChainProvider, IServiceProvider, OnApplicat
             trIns.vIns = tr.vIns;
             trIns.vOuts = tr.vOuts;
             await this.trRepo.save(trIns);
-            // not found, so new transaction
-            for (const repo of repos) {
+
+            // add all indexes
+            // sender
+            for (const repo of inRepos) {
                 const indexIns = new TransactionBTCIndex();
                 indexIns.txId = tr.txId;
                 indexIns.address = repo.address;
-                indexIns.sender = inAddresses.includes(repo.address) ? true : false;
+                indexIns.sender = true;
                 await this.trIndexRepo.save(indexIns);
-                resultRepos.push(repo);
+                filter.push(repo);
+            }
+            // recipient
+            for (const repo of outRepos) {
+                const indexIns = new TransactionBTCIndex();
+                indexIns.txId = tr.txId;
+                indexIns.address = repo.address;
+                indexIns.sender = false;
+                await this.trIndexRepo.save(indexIns);
+                filter.push(repo);
+            }
+        } else {
+            // transaction exist
+            // sender
+            for (const repo of inRepos) {
+                const indexRepo = await this.trIndexRepo.findOne({
+                    txId: tr.txId,
+                    address: repo.address,
+                    sender: true
+                });
+                if (!indexRepo) {
+                    continue;
+                }
+                const indexIns = new TransactionBTCIndex();
+                indexIns.txId = tr.txId;
+                indexIns.address = repo.address;
+                indexIns.sender = true;
+                await this.trIndexRepo.save(indexIns);
+                filter.push(repo);
+            }
+            // recipient
+            for (const repo of outRepos) {
+                const indexRepo = await this.trIndexRepo.findOne({
+                    txId: tr.txId,
+                    address: repo.address,
+                    sender: false
+                });
+                if (!indexRepo) {
+                    continue;
+                }
+                const indexIns = new TransactionBTCIndex();
+                indexIns.txId = tr.txId;
+                indexIns.address = repo.address;
+                indexIns.sender = false;
+                await this.trIndexRepo.save(indexIns);
+                filter.push(repo);
             }
         }
 
-        return resultRepos;
+        const filterAddresses: string[] = [];
+        const result = filter.filter((val: AccountBTC) => {
+            if (filterAddresses.includes(val.address)) {
+                return false;
+            }
+            filterAddresses.push(val.address);
+            return true;
+        });
+        return result;
     }
 }

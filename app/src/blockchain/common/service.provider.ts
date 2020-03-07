@@ -5,17 +5,6 @@ export interface IServiceProvider {
      * 获取当前链的有效地址列表，用于监控余额变化，交易变化
      * @returns - 当前链在服务上有效的地址列表
      */
-    getValidAddresses(): Promise<string[]>;
-
-    /**
-     * 设置服务端有效地址列表变更时的通知
-     * @param cb - 服务里有效用户地址列表变化后回调的函数
-     */
-    // setDirtyFn(cb: () => Promise<void>): Promise<void>;
-
-    /**
-     * 
-     */
     getAddresses(): Promise<string[]>;
 
     /**

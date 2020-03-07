@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { IService } from '../common/service.interface';
 import { TransferDef, TransferResp, BalanceResp, BitcoinTransaction } from '../common/types';
 
@@ -23,16 +23,20 @@ const client = new Client({
 const PRECISION = 1e-8;
 
 @Injectable()
-export class BtcService extends IService {
+export class BtcService extends IService implements OnModuleInit, OnModuleDestroy {
     private interval = null;
     private lastHash = '';
 
     constructor() {
-        super()
+        super();
+    }
 
-        setTimeout(() => {
-            this.startMonitor()
-        }, 1000)
+    async onModuleInit() {
+        await this.startMonitor();
+    }
+
+    async onModuleDestroy() {
+        await this.stopMonitor();
     }
 
     // 启动监听数据变更

@@ -34,12 +34,22 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
     }
 
     onModuleInit() {
-        this.httpProvider.on('block', async (blockNumber) => {
-            //    console.log('New Eth Block: ' + blockNumber);
-            const b = await this.httpProvider.getBlock(blockNumber);
-            //    console.log('New Block: ',JSON.stringify(b));
-            this.tx_cache = this.tx_cache.concat(b.transactions)
-            //   console.log('New Eth Block: ' + blockNumber,JSON.stringify(this.tx_cache.length))
+        // this.httpProvider.on('block', async (blockNumber) => {
+        //     //    console.log('New Eth Block: ' + blockNumber);
+        //     const b = await this.httpProvider.getBlock(blockNumber);
+        //     //    console.log('New Block: ',JSON.stringify(b));
+        //     this.tx_cache = this.tx_cache.concat(b.transactions)
+        //     //   console.log('New Eth Block: ' + blockNumber,JSON.stringify(this.tx_cache.length))
+        // });
+
+        this.httpProvider.on('block', (blockNumber) => {
+            this.httpProvider.getBlock(blockNumber)
+                .then(block => {
+                    this.tx_cache = this.tx_cache.concat(block?.transactions);
+                })
+                .catch(error => {
+                    // Error Happend!!
+                });
         });
     }
 

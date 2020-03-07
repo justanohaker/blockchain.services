@@ -28,14 +28,10 @@ export class IService {
         this.addresses = await this.provider.getAddresses();
     }
 
-    // /**
-    //  * @note 需要其它逻辑处理，请重载此方法
-    //  */
-    // async onDirty(): Promise<void> {
-    //     this.addresses = await this.provider.getAddresses();
-    //     // TODO: other logic implemented by subclass
-    // }
-
+    /**
+     * 当系统有新账号产生时将调用此接口
+     * @param addresses 新账号地址列表
+     */
     async onNewAccounts(addresses: string[]): Promise<void> {
         // TODO
         this.addresses = await this.provider.getAddresses();
@@ -56,7 +52,7 @@ export class IService {
 
     /**
      * @note override
-     * @param data 
+     * @param data - 转账参数
      */
     async transfer(data: TransferDef): Promise<TransferResp> {
         // TODO: implemented by subclass

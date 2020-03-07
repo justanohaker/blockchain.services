@@ -35,11 +35,11 @@ export class EthProvider implements IChainProvider, IServiceProvider, OnApplicat
     ) { }
 
     async onApplicationBootstrap(): Promise<void> {
-        await this.ethService.setProvider(this);
+        this.ethService.setProvider(this);
 
         // init update balances
         const allAddresses = await this.getAddresses();
-        await this.ethService.onUpdateBalances(allAddresses);
+        this.ethService.onUpdateBalances(allAddresses);
     }
 
     // implement IChainProvider
@@ -174,8 +174,8 @@ export class EthProvider implements IChainProvider, IServiceProvider, OnApplicat
     }
 
     async onNewAccount(accounts: string[]): Promise<void> {
-        await this.ethService.onNewAccounts(accounts);
-        await this.ethService.onUpdateBalances(accounts);
+        this.ethService.onNewAccounts(accounts);
+        this.ethService.onUpdateBalances(accounts);
         // TODO: pusher new accounts
         for (const account of accounts) {
             const accountRepo = await this.accountRepo.findOne({ address: account });
@@ -185,7 +185,7 @@ export class EthProvider implements IChainProvider, IServiceProvider, OnApplicat
                     accountRepo.accountId
                 );
                 for (const webhook of webhooks) {
-                    await this.pusherService.addPush(webhook.postUrl, {
+                    this.pusherService.addPush(webhook.postUrl, {
                         type: PushEventType.AccountNew,
                         platform: PushPlatform.ETH,
                         data: {
@@ -210,10 +210,6 @@ export class EthProvider implements IChainProvider, IServiceProvider, OnApplicat
         return addresses;
     }
 
-    async getValidAddresses(): Promise<string[]> {
-        return await this.getAddresses();
-    }
-
     async onBalanceChanged(newBalances: BalanceDef[]): Promise<void> {
         console.log('[EthProvider] onBalanceChanged:', JSON.stringify(newBalances, null, 2));
         for (const bln of newBalances) {
@@ -225,7 +221,7 @@ export class EthProvider implements IChainProvider, IServiceProvider, OnApplicat
             // TODO: push balance changed notification
             const webhooks = await this.getWebHooks(repo.clientId, repo.accountId);
             for (const webhook of webhooks) {
-                await this.pusherService.addPush(webhook.postUrl, {
+                this.pusherService.addPush(webhook.postUrl, {
                     type: PushEventType.BalanceUpdate,
                     platform: PushPlatform.ETH,
                     data: {
@@ -258,7 +254,7 @@ export class EthProvider implements IChainProvider, IServiceProvider, OnApplicat
                 addresses.push(repo.address);
                 const webhooks = await this.getWebHooks(repo.clientId, repo.accountId);
                 for (const webhook of webhooks) {
-                    await this.pusherService.addPush(webhook.postUrl, {
+                    this.pusherService.addPush(webhook.postUrl, {
                         type: PushEventType.TransactionConfirmed,
                         platform: PushPlatform.ETH,
                         data: {
@@ -309,14 +305,12 @@ export class EthProvider implements IChainProvider, IServiceProvider, OnApplicat
     }
 
     private async addTransaction(tr: EthereumTransaction): Promise<AccountETH[]> {
-        console.log('[EthProvider] addTransaction:', JSON.stringify(tr, null, 2));
         const accountRepos = await this.accountRepo.find({
             where: [
                 { address: tr.sender },
                 { address: tr.recipient }
             ]
         });
-        console.log('[EthProvider] addTransaction accountInfo:', JSON.stringify(accountRepos, null, 2));
         if (!accountRepos) {
             return null;
         }

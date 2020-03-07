@@ -130,19 +130,8 @@ export class NotificationController {
         }
     }
 
-    // @Post('webhook_post')
+    // @Post('webhook')
     // async webhookPostTest(@Body() body: any) {
-    //     console.log('[NotificationController] WebHookPost:', body);
-    // }
-
-    // @Put('webhook_put')
-    // async webhooksPutTest(@Body() body: any) {
-    //     console.log('[NotificationController] WebHookPut:', body);
-    // }
-
-    // @Post('webhook_with_status_ok')
-    // @HttpCode(HttpStatus.OK)
-    // async webhookWithStatusOK(@Body() body: any) {
-    //     console.log('[NotificationController] WebHookWithStatusOK:', body);
+    //     console.log('[NotificationController] WebHook:', body);
     // }
 }
