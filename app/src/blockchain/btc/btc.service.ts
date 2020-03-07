@@ -209,9 +209,10 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
         try {
             // 读取为花费交易列表
             // let unspents = await client.command('listunspent', 1, 9999, [data.keyPair.address]);
-            let unspents = await client.command('listunspent', {
-                addresses: [data.keyPair.address]
-            })
+            let unspents = await client.command('listunspent', { addresses: [data.keyPair.address] });
+            if (unspents.length === 0) {
+                throw new Error('listunspent is empty');
+            }
             // console.log('listunspent ==>', unspents, data.keyPair.address);
 
             // 组织psbt数据
@@ -231,7 +232,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
                 });
 
                 total = total.plus(new Bignumber(unspent.amount).div(PRECISION));
-                if (total.gt(trans)) {
+                if (total.gte(trans)) {
                     rest = total.minus(trans);
                     // console.log(total.toNumber(), amount.toNumber(), rest.toNumber(), trans.toNumber(), rest.toNumber())
                     break;
