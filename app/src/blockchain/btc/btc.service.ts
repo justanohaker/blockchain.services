@@ -86,21 +86,22 @@ export class BtcService extends IService {
                     // console.log('vin =4=>', vin)
                     if (vin.txid) {
                         let txVin = await client.command('getrawtransaction', vin.txid, true)
-                        for (let vout of txVin.vout) {
-                            // console.log('vout =5=>', vout)
-                            if (vout.scriptPubKey && vout.scriptPubKey.addresses) {
-                                for (let address of vout.scriptPubKey.addresses) {
-                                    // console.log('scriptPubKey =6=>', vout.scriptPubKey)
-                                    btcTx.vIns.push({
-                                        address: address,
-                                        amount: (new Bignumber(vout.value).div(PRECISION)).toString()
-                                    });
-                                    if (this.addresses && this.addresses.includes(address)) {
-                                        isRelative = true;
-                                    }
+                        // for (let vout of txVin.vout) {
+                        let vout = txVin.vout[vin.vout];
+                        // console.log('vout =5=>', vout)
+                        if (vout.scriptPubKey && vout.scriptPubKey.addresses) {
+                            for (let address of vout.scriptPubKey.addresses) {
+                                // console.log('scriptPubKey =6=>', vout.scriptPubKey)
+                                btcTx.vIns.push({
+                                    address: address,
+                                    amount: (new Bignumber(vout.value).div(PRECISION)).toString()
+                                });
+                                if (this.addresses && this.addresses.includes(address)) {
+                                    isRelative = true;
                                 }
                             }
                         }
+                        // }
                     }
                 }
                 for (let vout of tx.vout) {
@@ -159,7 +160,7 @@ export class BtcService extends IService {
                 for (let groups of groupsList) {
                     for (let group of groups) {
                         if (group.includes(address)) {
-                            info.balance = group[1].toString();
+                            info.balance = new Bignumber(group[1]).div(PRECISION).toString();
                         }
                     }
                 }
