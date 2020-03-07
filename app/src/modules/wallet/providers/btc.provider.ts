@@ -254,11 +254,15 @@ export class BtcProvider implements IChainProvider, IServiceProvider, OnApplicat
                         type: PushEventType.TransactionConfirmed,
                         platform: PushPlatform.BTC,
                         data: {
-                            txid: tr.txId,
-                            blockHeight: tr.blockHeight,
-                            blockTime: tr.blockTime,
-                            vIns: tr.vIns,
-                            vOuts: tr.vOuts
+                            accountId: repo.accountId,
+                            address: repo.address,
+                            transaction: {
+                                txid: tr.txId,
+                                blockHeight: tr.blockHeight,
+                                blockTime: tr.blockTime,
+                                vIns: tr.vIns,
+                                vOuts: tr.vOuts
+                            }
                         }
                     });
                 }

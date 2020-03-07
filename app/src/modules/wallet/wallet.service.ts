@@ -72,8 +72,8 @@ export class WalletService {
         const ethAccount = await this.ethProvider.addAccount(userRepo, secretRepo.chainSecret);
 
         // TODO
-        await this.btcProvider.onNewAccount([btcAccount.address]);
-        await this.ethProvider.onNewAccount([ethAccount.address]);
+        this.btcProvider.onNewAccount([btcAccount.address]);
+        this.ethProvider.onNewAccount([ethAccount.address]);
         return result;
     }
 
@@ -137,13 +137,6 @@ export class WalletService {
         coin: CoinType
     ): Promise<BalanceRespDto> {
         const result: BalanceRespDto = { success: true };
-        if (!await this.accountExists(clientId, accountId)) {
-            result.success = false;
-            result.error = 'parameter error!';
-            result.errorCode = RespErrorCode.BAD_REQUEST;
-            return result;
-        }
-
         try {
             const provider = this.getProvider(coin);
             result.balance = await provider.getBalance(clientId, accountId);
@@ -152,7 +145,6 @@ export class WalletService {
             result.error = `${error}`;
             result.errorCode = RespErrorCode.BAD_REQUEST;
         }
-
         return result;
     }
 
@@ -162,13 +154,6 @@ export class WalletService {
         coin: CoinType
     ): Promise<TransactionsRespDto> {
         const result: TransactionsRespDto = { success: true };
-        if (!await this.accountExists(clientId, accountId)) {
-            result.success = false;
-            result.error = 'parameter error!';
-            result.errorCode = RespErrorCode.BAD_REQUEST;
-            return result;
-        }
-
         try {
             const provider = this.getProvider(coin);
             result.txids = await provider.getTransactions(clientId, accountId);
@@ -188,13 +173,6 @@ export class WalletService {
         txId: string
     ): Promise<TransactionRespDto> {
         const result: TransactionRespDto = { success: true };
-        if (!await this.accountExists(clientId, accountId)) {
-            result.success = false;
-            result.error = 'parameter error!';
-            result.errorCode = RespErrorCode.BAD_REQUEST;
-            return result;
-        }
-
         try {
             const provider = this.getProvider(coin);
             result.data = await provider.getTransaction(clientId, accountId, txId);
@@ -214,13 +192,6 @@ export class WalletService {
         despositDto: DespositDto
     ): Promise<DespositRespDto> {
         const result: DespositRespDto = { success: true };
-        if (!await this.accountExists(clientId, accountId)) {
-            result.success = false;
-            result.error = 'parameter error!';
-            result.errorCode = RespErrorCode.BAD_REQUEST;
-            return result;
-        }
-
         try {
             const provider = this.getProvider(coin);
             result.txid = await provider.transfer(clientId, accountId, despositDto);

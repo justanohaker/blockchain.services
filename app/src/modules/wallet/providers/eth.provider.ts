@@ -258,12 +258,16 @@ export class EthProvider implements IChainProvider, IServiceProvider, OnApplicat
                         type: PushEventType.TransactionConfirmed,
                         platform: PushPlatform.ETH,
                         data: {
-                            txid: tr.txId,
-                            blockHeight: tr.blockHeight,
-                            nonce: tr.nonce,
-                            sender: tr.sender,
-                            recipient: tr.recipient,
-                            amount: tr.amount
+                            accountId: repo.accountId,
+                            address: repo.address,
+                            transaction: {
+                                txid: tr.txId,
+                                blockHeight: tr.blockHeight,
+                                nonce: tr.nonce,
+                                sender: tr.sender,
+                                recipient: tr.recipient,
+                                amount: tr.amount
+                            }
                         }
                     });
                 }

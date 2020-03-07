@@ -208,8 +208,11 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
     private async transferByPsbt(data: TransferDef) {
         try {
             // 读取为花费交易列表
-            let unspents = await client.command('listunspent', 1, 9999, [data.keyPair.address]);
-            // console.log('listunspent ==>', unspents)
+            // let unspents = await client.command('listunspent', 1, 9999, [data.keyPair.address]);
+            let unspents = await client.command('listunspent', {
+                addresses: [data.keyPair.address]
+            })
+            // console.log('listunspent ==>', unspents, data.keyPair.address);
 
             // 组织psbt数据
             let psbt = new Psbt({ network: networks.testnet });
@@ -251,7 +254,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
             psbt.validateSignaturesOfAllInputs();
             psbt.finalizeAllInputs();
             const psbtHash = psbt.extractTransaction().toHex();
-            // console.log('psbtHash ==>',psbtHash)
+            // console.log('psbtHash ==>', psbtHash)
 
             //发送交易
             let txHash = await client.command('sendrawtransaction', psbtHash);
