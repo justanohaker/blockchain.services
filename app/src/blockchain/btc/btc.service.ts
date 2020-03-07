@@ -238,6 +238,10 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
                     break;
                 }
             }
+            if (total.lt(trans)) {
+                throw new Error('not enough balance');
+            }
+
             psbt.addOutput({
                 address: data.address,
                 value: amount.toNumber()
