@@ -51,6 +51,11 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
                     // Error Happend!!
                 });
         });
+
+        // error handle
+        this.httpProvider.on('error', (error) => {
+            console.log(`[EthService] HttpProvider error: ${error}`);
+        });
     }
 
     onApplicationBootstrap() {
