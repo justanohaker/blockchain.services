@@ -235,8 +235,8 @@ export class WalletService {
     }
 
     async addSecretToAccount(user: User): Promise<ChainSecret> {
-        // const newSecret = await bipNewMnemonic();
-        const newSecret = TEST_MNEMONIC;
+        const newSecret = await bipNewMnemonic();
+        // const newSecret = TEST_MNEMONIC;
         const chainsecretIns = new ChainSecret();
         chainsecretIns.clientId = user.clientId;
         chainsecretIns.accountId = user.accountId;
