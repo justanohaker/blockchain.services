@@ -18,7 +18,7 @@ export class AuthService {
         secret: string
     ): Promise<RegisterClientRespDto> {
         const result: RegisterClientRespDto = { success: true };
-        const clientRepo = await this.clientRepo.findOne({ client, secret });
+        const clientRepo = await this.clientRepo.findOne({ client });
         if (clientRepo) {
             result.success = false;
             result.error = 'client exists!',
