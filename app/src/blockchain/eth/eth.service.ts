@@ -2,6 +2,7 @@ import { Injectable, Logger, OnApplicationBootstrap, OnModuleInit } from '@nestj
 import { NewWalletDto, sendCoinDto, balanceDto, transactionDto } from './eth.dto';
 import { BalanceDef, BalanceResp, TransferDef, TransferResp, EthereumTransaction } from '../common/types';
 import { IService } from '../common/service.interface';
+import {FeePriority} from '../../libs/types'
 import { IServiceProvider } from '../common/service.provider';
 import { ethers, utils } from 'ethers';
 // import { EthaccountsCurd } from '../../curds/ethaccounts-curd';
@@ -160,6 +161,12 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
         let transaction = await this.httpProvider.getTransaction(param.transactionId)
         return transaction
     }
+    getFeeLevel() {
+        return {"fast":GASPRICE['2'],
+                "normal":GASPRICE['1'],
+                 "slow":GASPRICE['0']
+               }
+    }
     // /**
     //  * 设置provider - 用于处理一个回调或服务端信息获取
     //  * @param provider - IServiceProvider
@@ -183,11 +190,11 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
      * @param data 
      */
     async transfer(param: TransferDef): Promise<TransferResp> {
-        let nonce = await this.httpProvider.getTransactionCount(param.keyPair.address)
+        let nonce = await this.httpProvider.getTransactionCount(param.keyPair.address)        
         let transaction = {
             nonce: nonce,
             gasLimit: 21000,
-            gasPrice: utils.bigNumberify("20000000000"),
+            gasPrice: utils.bigNumberify(getFee(param.feePriority)),// Gwei   ,slow 5000000000 normal 15000000000 fast 30000000000
             to: param.address,
             value: utils.bigNumberify(param.amount),//wei utils.parseEther("1.0"),
             chainId: ethers.utils.getNetwork('ropsten').chainId
@@ -205,4 +212,21 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
         )
         return { success: true, txId: tx.hash }
     }
+}
+function getFee(param){
+    switch (param) {
+        case FeePriority.HIGH :
+            return GASPRICE["2"];
+         case FeePriority.NORMAL:
+            return GASPRICE["1"];
+        case FeePriority.LOWER:
+            return GASPRICE["0"];
+        default:
+            return GASPRICE["1"];
+    }
+}
+export const  GASPRICE ={
+    "2":   "30000000000",//快
+    "1" :   "15000000000",//普通
+    "0" :    "5000000000",//慢
 }
