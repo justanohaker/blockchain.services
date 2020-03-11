@@ -1,8 +1,7 @@
 import { Module } from '@nestjs/common';
 import { SharedModelModule } from '../shared/shared-model/shared-model.module';
 import { SharedJwtModule } from '../shared/shared-jwt/shared-jwt.module';
-import { BtcModule } from '../../blockchain/btc/btc.module';
-import { EthModule } from '../../blockchain/eth/eth.module';
+import { BlockchainModule } from '../../blockchain/blockchain.module';
 import { PusherModule } from '../pusher/pusher.module';
 import { WalletController } from './wallet.controller';
 import { WalletService } from './wallet.service';
@@ -14,10 +13,9 @@ import { NullProvider } from './providers/null.provider';
     imports: [
         SharedModelModule,
         SharedJwtModule,
+        PusherModule,
 
-        BtcModule,
-        EthModule,
-        PusherModule
+        BlockchainModule,
     ],
     controllers: [WalletController],
     providers: [

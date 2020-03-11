@@ -21,8 +21,8 @@ export class AuthService {
         const clientRepo = await this.clientRepo.findOne({ client });
         if (clientRepo) {
             result.success = false;
-            result.error = 'client exists!',
-                result.errorCode = RespErrorCode.BAD_REQUEST;
+            result.error = 'client exists!';
+            result.errorCode = RespErrorCode.BAD_REQUEST;
             return result;
         }
 
