@@ -82,10 +82,11 @@ export class IService {
         const addresses = this._updateAddresses.splice(0, spliceSize);
         this.getBalance(addresses)
             .then((balances: BalanceResp) => {
-                if (this.provider && balances.success) {
+                if (balances && this.provider && balances.success) {
                     this.provider.onBalanceChanged(balances.result);
                 }
             })
+            .catch(error => { /* // TODO */ })
             .finally(() => {
                 setTimeout(this._updateBalanceHandler, UPDATE_TIMEOUT);
             });

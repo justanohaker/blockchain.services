@@ -1,4 +1,4 @@
-import { Controller, Post, HttpCode, HttpStatus, Get, Put, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, HttpCode, HttpStatus, Get, Put, Param, Body, UseGuards, Logger } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthClient, AuthClientDto } from '../../libs/decorators/authclient.decorator';
@@ -9,6 +9,7 @@ import { NotificationService } from './notification.service';
 @ApiTags('通知')
 @Controller('notification')
 export class NotificationController {
+    private logger: Logger = new Logger('NotificationController');
     constructor(
         private readonly notificationService: NotificationService
     ) { }
@@ -130,8 +131,9 @@ export class NotificationController {
         }
     }
 
-    // @Post('webhook')
-    // async webhookPostTest(@Body() body: any) {
-    //     console.log('[NotificationController] WebHook:', body);
-    // }
+    @Post('webhook')
+    async webhookPostTest(@Body() body: any) {
+        // console.log('[NotificationController] WebHook:', body);
+        this.logger.log(`WebHook: ${JSON.stringify(body, null, 2)}`);
+    }
 }

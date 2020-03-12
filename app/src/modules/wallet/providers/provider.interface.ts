@@ -1,6 +1,13 @@
 import { DespositDto } from "../wallet.dto";
+import { User } from "src/models/users.model";
+import { TxDef } from "./types";
 
 export interface IChainProvider {
+    addAccount(
+        userRepo: User,
+        secret: string
+    ): Promise<any>;
+
     getAddress(
         clientId: string,
         accountId: string
@@ -20,7 +27,7 @@ export interface IChainProvider {
         clientId: string,
         accountId: string,
         txId: string
-    ): Promise<any>;
+    ): Promise<TxDef>;
 
     transfer(
         clientId: string,

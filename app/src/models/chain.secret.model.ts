@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 
-@Entity()
+@Entity('chainsecrets')
 export class ChainSecret {
     @PrimaryGeneratedColumn('rowid')
     id: string;

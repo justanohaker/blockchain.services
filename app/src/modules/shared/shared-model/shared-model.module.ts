@@ -5,11 +5,8 @@ import { Client } from '../../../models/clients.model';
 import { User } from '../../../models/users.model';
 import { Webhook } from '../../../models/user.webhook.model';
 import { ChainSecret } from '../../../models/chain.secret.model';
-import { AccountBTC } from '../../../models/accounts.btc.model';
-import { TransactionBTC, TransactionBTCIndex } from '../../../models/transactions.btc.model';
-import { AccountETH } from '../../../models/accounts.eth.model';
-import { TransactionETH } from '../../../models/transactions.eth.model';
-
+import { Account } from '../../../models/accounts.model';
+import { ChainTx, ChainTxIndex } from '../../../models/transactions.model';
 
 @Module({
     imports: [
@@ -22,11 +19,9 @@ import { TransactionETH } from '../../../models/transactions.eth.model';
                 ChainSecret,
                 User,
                 Webhook,
-                AccountBTC,
-                TransactionBTC,
-                TransactionBTCIndex,
-                AccountETH,
-                TransactionETH
+                Account,
+                ChainTx,
+                ChainTxIndex,
             ]
         }),
         TypeOrmModule.forFeature([
@@ -34,11 +29,9 @@ import { TransactionETH } from '../../../models/transactions.eth.model';
             User,
             Webhook,
             ChainSecret,
-            AccountBTC,
-            TransactionBTC,
-            TransactionBTCIndex,
-            AccountETH,
-            TransactionETH
+            Account,
+            ChainTx,
+            ChainTxIndex,
         ])],
     exports: [TypeOrmModule],
 })

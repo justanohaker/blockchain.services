@@ -31,6 +31,7 @@ export class EthController {
         let res4 = await this.ethService.transfer({
             keyPair: {
                 privateKey: "0x7f870ce4ebf900e040cce32976bf2239db878cb94885f50c780cfa2cf37659ed",
+                wif: '',
                 address: "0xC4100A97dD815626E57A13886650060F914cc782"
             },
             address: "0x0Dd0C25B0a56564327aE70f0aeD805024084c35F",

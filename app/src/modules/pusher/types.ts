@@ -16,7 +16,9 @@ export const enum PushEventType {
 
 export const enum PushPlatform {
     BTC = 'bitcoin.btc',
-    ETH = 'ethereum.eth'
+    ETH = 'ethereum.eth',
+    OMNI_USDT = 'bitcoin.omni_usdt',
+    ERC20_USDT = 'ethereum.erc20_usdt'
 }
 
 export type InternalMessageDef = {

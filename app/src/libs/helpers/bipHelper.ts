@@ -67,6 +67,16 @@ export async function bipHexPrivFromxPriv(xpriv: string, platform: Platform) {
     }
 }
 
+export async function bipWIFFromxPriv(xpriv: string, platform: Platform) {
+    if (platform === Platform.BITCOIN_TESTNET) {
+        const b32 = fromBase58(xpriv, networks.testnet);
+        return b32.toWIF();
+    } else {
+        const b32 = fromBase58(xpriv, networks.bitcoin);
+        return b32.toWIF();
+    }
+}
+
 export async function bipGetAddressFromXPub(platform: Platform, xpub: string) {
     let pubkey: Buffer = null;
     if (platform === Platform.BITCOIN_TESTNET) {

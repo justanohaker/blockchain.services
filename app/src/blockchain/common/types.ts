@@ -4,6 +4,7 @@ import { FeePriority } from '../../libs/types';
  */
 export type AccountKeyPair = {
     privateKey: string;     // 账号私钥(hex string)
+    wif: string;            // WIF(Wallet Import Format)
     address: string;        // 账号地址
 }
 
@@ -54,7 +55,7 @@ export type BitcoinTransaction = {
     sub: 'btc';                     // 比特币代币BTC - 标记
     txId: string;                   // 交易Id
     blockHeight: number;            // 交易打包高度
-    blockTime: number;             // 交易打包时间
+    blockTime: number;              // 交易打包时间
     vIns: BTCvIn[];                 // 交易发送者列表
     vOuts: BTCvOut[]                // 交易接收者列表
 }
@@ -79,12 +80,34 @@ export type EthereumTransaction = {
     amount: string;                 // 转账金额
 }
 
-// TEST: ERC20代币交易结构定义
-export type ERC20Transaction = {
-    type: 'ethereum-erc20';               // 以太坊主网 - 标记
-    sub: 'etm';                     // 以太坊ERC20代币ETM - 标记
-    // ...
+// For ERC20 Tokens
+export type Erc20UsdtTransaction = {
+    type: 'ethereum';               // 以太坊主网 - 标记
+    sub: 'erc20-usdt';              // erc20 usdt token - 标记
+    txId: string;                   // 交易Id
+    blockHeight: number;            // 交易打包高度
+    sender: string;                 // 交易发送者地址
+    recipient: string;              // 交易接收者地址
+    amount: string;                 // 转账金额
+}
+
+// For OmniLayer Tokens
+export type OmniUsdtTransactin = {
+    type: 'bitcoin';                // 比特币主网 - 标记
+    sub: 'omni-usdt';               // omniLayer usdt token - 标记
+    txId: string;                   // 交易Id
+    blockHeight: number;            // 交易打包高度
+    blockTime: number;              // 交易打包时间 
+    propertyId: number;             // omni token id
+    version: number,                // omni transaction version
+    typeInt: number;                // omni transaction type(number format)
+    sending: string;                // 交易发送方
+    reference: string;              // 交易接收方
+    amount: string;                 // 交易金额
 }
 
 // 交易结构定义
-export type Transaction = BitcoinTransaction | EthereumTransaction;
+export type Transaction = BitcoinTransaction
+    | EthereumTransaction
+    | Erc20UsdtTransaction
+    | OmniUsdtTransactin;

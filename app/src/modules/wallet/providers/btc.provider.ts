@@ -1,417 +1,175 @@
-import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
+import { Injectable, OnApplicationBootstrap, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { IChainProvider } from './provider.interface';
-import {
-    bipPrivpubFromMnemonic,
-    bipGetAddressFromXPub,
-    Platform,
-    bipHexPrivFromxPriv
-} from '../../../libs/helpers/bipHelper';
+import { CoinType } from '../../../libs/types';
+import { Platform } from '../../../libs/helpers/bipHelper';
+import { addressIsBitcoin } from '../../../libs/helpers/addressHelper';
+import { BtcService } from '../../../blockchain/btc/btc.service';
+import { Transaction } from '../../../blockchain/common/types';
+import { IService } from '../../../blockchain/common/service.interface';
+import { BitcoinTransaction } from '../../../blockchain/common/types';
+import { PusherService } from '../../../modules/pusher/pusher.service';
+import { PushPlatform } from '../../../modules/pusher/types';
 import { Client } from '../../../models/clients.model';
 import { User } from '../../../models/users.model';
-import { AccountBTC } from '../../../models/accounts.btc.model';
-import { TransactionBTC, TransactionBTCIndex } from '../../../models/transactions.btc.model';
 import { Webhook } from '../../../models/user.webhook.model';
-import { DespositDto } from '../wallet.dto';
-
-import { addressIsBitcoin } from '../../../libs/helpers/addressHelper';
-import { BalanceDef, Transaction, BitcoinTransaction } from '../../../blockchain/common/types';
-import { IServiceProvider } from '../../../blockchain/common/service.provider';
-import { BtcService } from '../../../blockchain/btc/btc.service';
-import { PusherService } from '../../pusher/pusher.service';
-import { PushEventType, PushPlatform } from '../../../modules/pusher/types';
+import { Account } from '../../../models/accounts.model';
+import { ChainTx, ChainTxIndex, } from '../../../models/transactions.model';
+import { ChainTxBtcData } from '../../../models/transactions.model';
+import { Provider } from './provider';
+import {
+    BtcDef,
+    TxAddActionResult,
+    AddressValidator,
+    TxChecker,
+    TxAddAction,
+    FromChainTxAction,
+    ToChainTxAction
+} from './types';
 
 @Injectable()
-export class BtcProvider implements IChainProvider, IServiceProvider, OnApplicationBootstrap {
+export class BtcProvider extends Provider implements OnApplicationBootstrap {
+    public readonly Logger: Logger = new Logger('BtcProvider', true);
     constructor(
-        @InjectRepository(Client) private readonly clientRepo: Repository<Client>,
-        @InjectRepository(User) private readonly userRepo: Repository<User>,
-        @InjectRepository(AccountBTC) private readonly accountRepo: Repository<AccountBTC>,
-        @InjectRepository(TransactionBTC) private readonly trRepo: Repository<TransactionBTC>,
-        @InjectRepository(TransactionBTCIndex) private readonly trIndexRepo: Repository<TransactionBTCIndex>,
-        @InjectRepository(Webhook) private readonly webhookRepo: Repository<Webhook>,
-        private readonly btcService: BtcService,
-        private readonly pusherService: PusherService
-    ) { }
+        @InjectRepository(Client) public readonly ClientRepo: Repository<Client>,
+        @InjectRepository(User) public readonly UserRepo: Repository<User>,
+        @InjectRepository(Webhook) public readonly WebHookRepo: Repository<Webhook>,
+        @InjectRepository(Account) public readonly AccountRepo: Repository<Account>,
+        @InjectRepository(ChainTx) public readonly ChainTxRepo: Repository<ChainTx>,
+        @InjectRepository(ChainTxIndex) public readonly ChainTxIndexRepo: Repository<ChainTxIndex>,
+        public readonly PushService: PusherService,
+        public readonly IService: BtcService,
+    ) {
+        super();
 
-    async onApplicationBootstrap(): Promise<void> {
-        this.btcService.setProvider(this);
+        this.txCheck = this.txCheck.bind(this);
+        this.txAdd = this.txAdd.bind(this);
+        this.fromChainTx = this.fromChainTx.bind(this);
+        this.toChainTx = this.toChainTx.bind(this);
+    }
+
+    // BEGIN: properties overrides
+    get Flag(): CoinType { return CoinType.BITCOIN; }
+    get Platform(): Platform { return Platform.BITCOIN_TESTNET; }
+    get PushPlatform(): PushPlatform { return PushPlatform.BTC; }
+    get AddressValidator(): AddressValidator { return addressIsBitcoin; }
+    get TxChecker(): TxChecker { return this.txCheck; }
+    get TxAddAction(): TxAddAction { return this.txAdd; }
+    get FromChainTxAction(): FromChainTxAction { return this.fromChainTx; }
+    get ToChainTxAction(): ToChainTxAction { return this.toChainTx; }
+    // END
+
+    async onApplicationBootstrap() {
+        this.IService.setProvider(this);
 
         const allAddresses = await this.getAddresses();
-        this.btcService.onUpdateBalances(allAddresses);
+        this.IService.onUpdateBalances(allAddresses);
     }
 
-    // implement IChainProvider
-    async addAccount(user: User, secret: string): Promise<AccountBTC> {
-        const privpub = await bipPrivpubFromMnemonic(secret, Platform.BITCOIN_TESTNET);
-        const address = await bipGetAddressFromXPub(
-            Platform.BITCOIN_TESTNET,
-            privpub.xpub
-        );
-        const accountIns = new AccountBTC();
-        accountIns.clientId = user.clientId;
-        accountIns.accountId = user.accountId;
-        accountIns.privkey = privpub.xpriv;
-        accountIns.pubkey = privpub.xpub;
-        accountIns.address = address;
-        accountIns.balance = '0';
-
-        const accountRepo = await this.accountRepo.save(accountIns);
-
-        return accountRepo;
+    private async txCheck(transaction: Transaction): Promise<boolean> {
+        const btcTr = transaction as BitcoinTransaction;
+        return (btcTr.type === 'bitcoin' && btcTr.sub === 'btc');
     }
 
-    async getAddress(clientId: string, accountId: string): Promise<string> {
-        if (!await this.exists(clientId, accountId)) {
-            throw new Error('parameter error!');
-        }
+    private async txAdd(transaction: Transaction): Promise<TxAddActionResult> {
+        const btc = transaction as BitcoinTransaction;
 
-        const repo = await this.accountRepo.findOne({ clientId, accountId });
-        if (!repo) {
-            throw new Error('parameter error!');
-        }
-        return repo.address;
-    }
-
-    async getBalance(clientId: string, accountId: string): Promise<string> {
-        if (!await this.exists(clientId, accountId)) {
-            throw new Error('parameter error!');
-        }
-        const repo = await this.accountRepo.findOne({ clientId, accountId });
-        if (!repo) {
-            throw new Error('parameter error!');
-        }
-        return repo.balance;
-    }
-
-    async getTransactions(clientId: string, accountId: string): Promise<string[]> {
-        if (!await this.exists(clientId, accountId)) {
-            throw new Error('parameter error!');
-        }
-        const accountRepo = await this.accountRepo.findOne({ clientId, accountId });
-        if (!accountRepo) {
-            throw new Error('parameter error!');
-        }
-
-        const repos = await this.trIndexRepo.find({ address: accountRepo.address });
-
-        const result: string[] = [];
-        for (const repo of repos) {
-            if (!result.includes(repo.txId)) {
-                result.push(repo.txId);
-            }
-        }
-        return result;
-    }
-
-    async getTransaction(clientId: string, accountId: string, txId: string): Promise<any> {
-        if (!await this.exists(clientId, accountId)) {
-            throw new Error('parameter error!');
-        }
-
-        const accountRepo = await this.accountRepo.findOne({ clientId, accountId });
-        const txIndexRepo = await this.trIndexRepo.findOne({ address: accountRepo.address, txId });
-        if (!txIndexRepo) {
-            throw new Error('parameter error!');
-        }
-
-        const repo = await this.trRepo.findOne({ txId });
-        if (!repo) {
-            throw new Error('parameter error!');
-        }
-
-        return repo;
-    }
-
-    async transfer(clientId: string, accountId: string, despositDto: DespositDto): Promise<string> {
-        const toAddress = despositDto.address;
-        const amount = despositDto.amount;
-        const feePriority = despositDto.feePriority;
-        if (!await addressIsBitcoin(toAddress) ||
-            !await this.exists(clientId, accountId)) {
-            throw new Error('parameter error!');
-        }
-
-        const accountRepo = await this.accountRepo.findOne({ clientId, accountId });
-        const keyPair = {
-            privateKey: await bipHexPrivFromxPriv(accountRepo.privkey, Platform.BITCOIN_TESTNET),
-            address: accountRepo.address
-        };
-        const transferResult = await this.btcService.transfer({
-            keyPair,
-            address: toAddress,
-            amount,
-            feePriority
-        });
-        if (!transferResult.success) {
-            throw new Error(
-                typeof transferResult.error! === 'string'
-                    ? transferResult.error!
-                    : JSON.stringify(transferResult.error!)
-            );
-        }
-
-        // TODO: push new transaction created??
-        const webhooks = await this.getWebHooks(clientId, accountId);
-        for (const webhook of webhooks) {
-            this.pusherService.addPush(webhook.postUrl, {
-                type: PushEventType.TransactionCreated,
-                platform: PushPlatform.BTC,
-                data: {
-                    accountId: accountId,
-                    address: keyPair.address,
-                    txid: transferResult.txId!
-                }
-            });
-        }
-        // END TODO
-        return transferResult.txId!;
-    }
-
-    async onNewAccount(accounts: string[]): Promise<void> {
-        this.btcService.onNewAccounts(accounts);
-        this.btcService.onUpdateBalances(accounts);
-        // TODO: pusher new Account
-        for (const account of accounts) {
-            const accountRepo = await this.accountRepo.findOne({ address: account });
-            if (accountRepo) {
-                const webhooks = await this.getWebHooks(
-                    accountRepo.clientId,
-                    accountRepo.accountId
-                );
-                for (const webhook of webhooks) {
-                    this.pusherService.addPush(webhook.postUrl, {
-                        type: PushEventType.AccountNew,
-                        platform: PushPlatform.BTC,
-                        data: {
-                            accountId: accountRepo.accountId,
-                            address: accountRepo.address
-                        }
-                    });
-                }
-            }
-        }
-        // END TODO
-    }
-
-    // implement IServiceProvider
-    async getAddresses(): Promise<string[]> {
-        const repos = await this.accountRepo.find();
-        const addresses: string[] = [];
-        for (const repo of repos) {
-            addresses.push(repo.address);
-        }
-
-        return addresses;
-    }
-
-    async onBalanceChanged(newBalances: BalanceDef[]): Promise<void> {
-        console.log('[BtcProvider] onBalanceChange:', JSON.stringify(newBalances, null, 2));
-        for (const bln of newBalances) {
-            const { address, balance } = bln;
-            const repo = await this.updateBalance(address, balance);
-            if (!repo) {
+        const ins: string[] = [];
+        const outs: string[] = [];
+        const inRepos: Account[] = [];
+        const outRepos: Account[] = [];
+        for (const vin of btc.vIns) {
+            if (ins.includes(vin.address)) {
                 continue;
             }
-            // TODO: push balance changed notification
-            const webhooks = await this.getWebHooks(repo.clientId, repo.accountId);
-            for (const webhook of webhooks) {
-                this.pusherService.addPush(webhook.postUrl, {
-                    type: PushEventType.BalanceUpdate,
-                    platform: PushPlatform.BTC,
-                    data: {
-                        accountId: repo.accountId,
-                        address: repo.address,
-                        balance: bln.balance
-                    }
-                });
-            }
-            // END TODO
-        }
-    }
-
-    async onNewTransaction(newTransactions: Transaction[]): Promise<void> {
-        console.log('[BtcProvider] onNewTransaction:', JSON.stringify(newTransactions, null, 2));
-        for (const tr of newTransactions) {
-            if (tr.type !== 'bitcoin' || tr.sub !== 'btc') {
-                //TODO: Unsupported!!
-                continue;
-            }
-            const repos = await this.addTransaction(tr);
-            if (!repos) {
-                continue;
-            }
-            const addresses: string[] = [];
-            // TODO: push new transaction notification
-            for (const repo of repos) {
-                if (!addresses.includes(repo.address)) {
-                    addresses.push(repo.address);
-                }
-                const webhooks = await this.getWebHooks(repo.clientId, repo.accountId);
-                for (const webhook of webhooks) {
-                    this.pusherService.addPush(webhook.postUrl, {
-                        type: PushEventType.TransactionConfirmed,
-                        platform: PushPlatform.BTC,
-                        data: {
-                            accountId: repo.accountId,
-                            address: repo.address,
-                            transaction: {
-                                txid: tr.txId,
-                                blockHeight: tr.blockHeight,
-                                blockTime: tr.blockTime,
-                                vIns: tr.vIns,
-                                vOuts: tr.vOuts
-                            }
-                        }
-                    });
-                }
-            }
-            this.btcService.onUpdateBalances(addresses);
-            // END TODO
-        }
-    }
-
-    // private
-    private async exists(clientId: string, accountId: string): Promise<boolean> {
-        const clientRepo = await this.clientRepo.findOne({ id: clientId });
-        if (!clientRepo) {
-            return false;
-        }
-
-        const userRepo = await this.userRepo.findOne({ clientId, accountId });
-        if (!userRepo) {
-            return false;
-        }
-        return true;
-    }
-
-    private async updateBalance(address: string, balance: string): Promise<AccountBTC> {
-        let accountRepo = await this.accountRepo.findOne({ address });
-        if (!accountRepo) {
-            return null;
-        }
-
-        accountRepo.balance = balance;
-        accountRepo = await this.accountRepo.save(accountRepo);
-        return accountRepo;
-    }
-
-    private async getWebHooks(clientId: string, accountId: string): Promise<Webhook[]> {
-        void (accountId);
-        const webhookRepo = await this.webhookRepo.find({ clientId });
-        return webhookRepo || [];
-    }
-
-    private async addTransaction(tr: BitcoinTransaction): Promise<AccountBTC[]> {
-        const inAddresses: string[] = [];
-        for (const vin of tr.vIns) {
-            !inAddresses.includes(vin.address)
-                && inAddresses.push(vin.address);
-        }
-        const outAddresses: string[] = [];
-        for (const vout of tr.vOuts) {
-            !outAddresses.includes(vout.address)
-                && outAddresses.push(vout.address);
-        };
-
-        const inRepos: AccountBTC[] = [];
-        for (const address of inAddresses) {
-            const accountRepo = await this.accountRepo.findOne({ address });
+            ins.push(vin.address);
+            const accountRepo = await this.findAccount(vin.address, this.Flag);
             if (accountRepo) {
                 inRepos.push(accountRepo);
             }
         }
-        const outRepos: AccountBTC[] = [];
-        for (const address of outAddresses) {
-            const accountRepo = await this.accountRepo.findOne({ address });
+        for (const vout of btc.vOuts) {
+            if (outs.includes(vout.address)) {
+                continue;
+            }
+            ins.push(vout.address);
+            const accountRepo = await this.findAccount(vout.address, this.Flag);
             if (accountRepo) {
                 outRepos.push(accountRepo);
             }
         }
 
-        // no invalid account
         if (inRepos.length <= 0 && outRepos.length <= 0) {
             return null;
         }
 
-        const filter: AccountBTC[] = [];
-        const trRepo = await this.trRepo.findOne({ txId: tr.txId });
-        if (!trRepo) {
-            // add transaction
-            const trIns = new TransactionBTC();
-            trIns.txId = tr.txId;
-            trIns.blockHeight = tr.blockHeight;
-            trIns.blockTime = tr.blockTime;
-            trIns.vIns = tr.vIns;
-            trIns.vOuts = tr.vOuts;
-            await this.trRepo.save(trIns);
-
-            // add all indexes
-            // sender
-            for (const repo of inRepos) {
-                const indexIns = new TransactionBTCIndex();
-                indexIns.txId = tr.txId;
-                indexIns.address = repo.address;
-                indexIns.sender = true;
-                await this.trIndexRepo.save(indexIns);
-                filter.push(repo);
-            }
-            // recipient
-            for (const repo of outRepos) {
-                const indexIns = new TransactionBTCIndex();
-                indexIns.txId = tr.txId;
-                indexIns.address = repo.address;
-                indexIns.sender = false;
-                await this.trIndexRepo.save(indexIns);
-                filter.push(repo);
-            }
-        } else {
-            // transaction exist
-            // sender
-            for (const repo of inRepos) {
-                const indexRepo = await this.trIndexRepo.findOne({
-                    txId: tr.txId,
-                    address: repo.address,
-                    sender: true
-                });
-                if (!indexRepo) {
-                    continue;
-                }
-                const indexIns = new TransactionBTCIndex();
-                indexIns.txId = tr.txId;
-                indexIns.address = repo.address;
-                indexIns.sender = true;
-                await this.trIndexRepo.save(indexIns);
-                filter.push(repo);
-            }
-            // recipient
-            for (const repo of outRepos) {
-                const indexRepo = await this.trIndexRepo.findOne({
-                    txId: tr.txId,
-                    address: repo.address,
-                    sender: false
-                });
-                if (!indexRepo) {
-                    continue;
-                }
-                const indexIns = new TransactionBTCIndex();
-                indexIns.txId = tr.txId;
-                indexIns.address = repo.address;
-                indexIns.sender = false;
-                await this.trIndexRepo.save(indexIns);
-                filter.push(repo);
+        const filter: Account[] = [];
+        const chainTxIns = await this.ToChainTxAction(btc);
+        await this.createChainTxIfNotExists(chainTxIns);
+        for (const inRepo of inRepos) {
+            const indexIns = new ChainTxIndex();
+            indexIns.txId = btc.txId;
+            indexIns.address = inRepo.address;
+            indexIns.sender = true;
+            indexIns.flag = this.Flag;
+            if (await this.createChainTxIndexIfNotExists(indexIns)) {
+                filter.push(inRepo);
             }
         }
-
-        const filterAddresses: string[] = [];
-        const result = filter.filter((val: AccountBTC) => {
-            if (filterAddresses.includes(val.address)) {
-                return false;
+        for (const outRepo of outRepos) {
+            const indexIns = new ChainTxIndex();
+            indexIns.txId = btc.txId;
+            indexIns.address = outRepo.address;
+            indexIns.sender = false;
+            indexIns.flag = this.Flag;
+            if (await this.ChainTxIndexRepo.save(indexIns)) {
+                filter.push(outRepo);
             }
-            filterAddresses.push(val.address);
-            return true;
-        });
-        return result;
+        }
+        const filterCointainer: string[] = [];
+        return {
+            data: {
+                txId: btc.txId,
+                blockHeight: btc.blockHeight,
+                blockTime: btc.blockTime,
+                vIns: btc.vIns,
+                vOuts: btc.vOuts
+            } as BtcDef,
+            accounts: filter.filter((val: Account) => {
+                if (filterCointainer.includes(val.address)) {
+                    return false;
+                }
+                filterCointainer.push(val.address);
+                return true;
+            })
+        };
+    }
+
+    private async toChainTx(src: BitcoinTransaction): Promise<ChainTx> {
+        const chainTxIns = new ChainTx();
+        chainTxIns.txId = src.txId;
+        chainTxIns.txData = {
+            blockHeight: src.blockHeight,
+            blockTime: src.blockTime,
+            vIns: src.vIns,
+            vOuts: src.vOuts
+        } as ChainTxBtcData;
+        chainTxIns.flag = this.Flag;
+        return chainTxIns;
+    }
+
+    private async fromChainTx(transaction: ChainTx): Promise<BtcDef> {
+        const { txId, txData, flag } = transaction;
+        if (flag !== CoinType.BITCOIN) {
+            return null;
+        }
+        const btcData = txData as ChainTxBtcData;
+        return {
+            txId: txId,
+            blockHeight: btcData.blockHeight,
+            blockTime: btcData.blockTime,
+            vIns: btcData.vIns,
+            vOuts: btcData.vOuts
+        } as BtcDef;
     }
 }

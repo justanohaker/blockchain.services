@@ -5,10 +5,6 @@ import { Repository } from 'typeorm';
 import { Client } from '../../models/clients.model';
 import { ChainSecret } from '../../models/chain.secret.model';
 import { User } from '../../models/users.model';
-import { AccountBTC } from '../../models/accounts.btc.model';
-import { AccountETH } from '../../models/accounts.eth.model';
-import { TransactionBTC, TransactionBTCIndex } from '../../models/transactions.btc.model';
-import { TransactionETH } from '../../models/transactions.eth.model';
 
 import { bipNewMnemonic } from '../../libs/helpers/bipHelper';
 import { RespErrorCode } from '../../libs/responseHelper';
@@ -28,9 +24,11 @@ import {
 } from './wallet.dto';
 
 import { IChainProvider } from './providers/provider.interface';
+import { NullProvider } from './providers/null.provider';
 import { BtcProvider } from './providers/btc.provider';
 import { EthProvider } from './providers/eth.provider';
-import { NullProvider } from './providers/null.provider';
+import { Erc20UsdtProvider } from './providers/erc20-usdt.provider';
+import { OmniUsdtProvider } from './providers/omni-usdt.provider';
 
 const TEST_MNEMONIC = 'cave syrup rather injury exercise unit army burden matrix horn celery gas border churn wheat';
 
@@ -40,13 +38,10 @@ export class WalletService {
         @InjectRepository(Client) private readonly clientRepo: Repository<Client>,
         @InjectRepository(ChainSecret) private readonly secretRepo: Repository<ChainSecret>,
         @InjectRepository(User) private readonly userRepo: Repository<User>,
-        @InjectRepository(AccountBTC) private readonly accountBtcRepo: Repository<AccountBTC>,
-        @InjectRepository(AccountETH) private readonly accountEthRepo: Repository<AccountETH>,
-        @InjectRepository(TransactionBTC) private readonly transactionBtc: Repository<TransactionBTC>,
-        @InjectRepository(TransactionBTCIndex) private readonly transactionIndexBtc: Repository<TransactionBTCIndex>,
-        @InjectRepository(TransactionETH) private readonly transactionEth: Repository<TransactionETH>,
         private readonly btcProvider: BtcProvider,
         private readonly ethProvider: EthProvider,
+        private readonly omniUsdtProvider: OmniUsdtProvider,
+        private readonly erc20UsdtProvider: Erc20UsdtProvider,
         private readonly nullProvider: NullProvider
     ) { }
 
@@ -67,13 +62,8 @@ export class WalletService {
         userIns.accountId = accountId;
         const userRepo = await this.userRepo.save(userIns);
         const secretRepo = await this.addSecretToAccount(userRepo);
+        await this.initAccounts(userRepo, secretRepo);
 
-        const btcAccount = await this.btcProvider.addAccount(userRepo, secretRepo.chainSecret);
-        const ethAccount = await this.ethProvider.addAccount(userRepo, secretRepo.chainSecret);
-
-        // TODO
-        this.btcProvider.onNewAccount([btcAccount.address]);
-        this.ethProvider.onNewAccount([ethAccount.address]);
         return result;
     }
 
@@ -211,6 +201,10 @@ export class WalletService {
                 return this.btcProvider;
             case CoinType.ETHEREUM:
                 return this.ethProvider;
+            case CoinType.OMNI_USDT:
+                return this.omniUsdtProvider;
+            case CoinType.ERC20_USDT:
+                return this.erc20UsdtProvider;
             default:
                 return this.nullProvider;
         }
@@ -235,8 +229,8 @@ export class WalletService {
     }
 
     async addSecretToAccount(user: User): Promise<ChainSecret> {
-        const newSecret = await bipNewMnemonic();
-        // const newSecret = TEST_MNEMONIC;
+        // const newSecret = await bipNewMnemonic();
+        const newSecret = TEST_MNEMONIC;
         const chainsecretIns = new ChainSecret();
         chainsecretIns.clientId = user.clientId;
         chainsecretIns.accountId = user.accountId;
@@ -244,5 +238,28 @@ export class WalletService {
 
         const chainsecretRepo = await this.secretRepo.save(chainsecretIns);
         return chainsecretRepo;
+    }
+
+    async initAccounts(userRepo: User, secretRepo: ChainSecret): Promise<void> {
+        const btcAccount = await this.btcProvider.addAccount(
+            userRepo,
+            secretRepo.chainSecret
+        );
+        this.btcProvider.onNewAccount([btcAccount.address]);
+        const ethAccount = await this.ethProvider.addAccount(
+            userRepo,
+            secretRepo.chainSecret
+        );
+        this.ethProvider.onNewAccount([ethAccount.address]);
+        const omniUsdtAccount = await this.omniUsdtProvider.addAccount(
+            userRepo,
+            secretRepo.chainSecret
+        );
+        this.omniUsdtProvider.onNewAccount([omniUsdtAccount.address]);
+        const erc20UsdtAccount = await this.erc20UsdtProvider.addAccount(
+            userRepo,
+            secretRepo.chainSecret
+        );
+        this.erc20UsdtProvider.onNewAccount([erc20UsdtAccount.address]);
     }
 }

@@ -1,7 +1,8 @@
 import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { CoinType } from 'src/libs/types';
 
-@Entity()
-export class AccountBTC {
+@Entity('accounts')
+export class Account {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
@@ -22,4 +23,7 @@ export class AccountBTC {
 
     @Column()
     balance: string;
+
+    @Column()
+    flag: CoinType
 }

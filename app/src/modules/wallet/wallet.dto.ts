@@ -26,10 +26,20 @@ export class CoinParam extends IdParam {
     @ApiProperty({
         description: '区块链平台(Bitcoin, Ethereum)',
         example: CoinType.BITCOIN,
-        enum: [CoinType.BITCOIN, CoinType.ETHEREUM]
+        enum: [
+            CoinType.BITCOIN,
+            CoinType.ETHEREUM,
+            CoinType.OMNI_USDT,
+            CoinType.ERC20_USDT
+        ]
     })
     @IsString()
-    @IsIn([CoinType.BITCOIN, CoinType.ETHEREUM])
+    @IsIn([
+        CoinType.BITCOIN,
+        CoinType.ETHEREUM,
+        CoinType.OMNI_USDT,
+        CoinType.ERC20_USDT
+    ])
     coin: CoinType;
 }
 

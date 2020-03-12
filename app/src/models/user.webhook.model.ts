@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 
-@Entity()
+@Entity('webhooks')
 export class Webhook {
     @PrimaryGeneratedColumn('uuid')
     id: string;
