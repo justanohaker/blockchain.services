@@ -1,16 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-
 import { Client } from '../../models/clients.model';
 import { ChainSecret } from '../../models/chain.secret.model';
 import { User } from '../../models/users.model';
-
 import { bipNewMnemonic } from '../../libs/helpers/bipHelper';
 import { RespErrorCode } from '../../libs/responseHelper';
-import {
-    CoinType
-} from '../../libs/types';
+import { CoinType } from '../../libs/types';
+import { IChainProvider } from './providers/provider.interface';
+import { NullProvider } from './providers/null.provider';
+import { BtcProvider } from './providers/btc.provider';
+import { EthProvider } from './providers/eth.provider';
+import { Erc20UsdtProvider } from './providers/erc20-usdt.provider';
+import { OmniUsdtProvider } from './providers/omni-usdt.provider';
 import {
     DespositDto,
     AddAccountRespDto,
@@ -22,13 +24,6 @@ import {
     TransactionRespDto,
     DespositRespDto
 } from './wallet.dto';
-
-import { IChainProvider } from './providers/provider.interface';
-import { NullProvider } from './providers/null.provider';
-import { BtcProvider } from './providers/btc.provider';
-import { EthProvider } from './providers/eth.provider';
-import { Erc20UsdtProvider } from './providers/erc20-usdt.provider';
-import { OmniUsdtProvider } from './providers/omni-usdt.provider';
 
 const TEST_MNEMONIC = 'cave syrup rather injury exercise unit army burden matrix horn celery gas border churn wheat';
 
@@ -45,14 +40,11 @@ export class WalletService {
         private readonly nullProvider: NullProvider
     ) { }
 
-    async addAccount(
-        clientId: string,
-        accountId: string
-    ): Promise<AddAccountRespDto> {
+    async addAccount(clientId: string, accountId: string): Promise<AddAccountRespDto> {
         const result: AddAccountRespDto = { success: true };
         if (await this.accountExists(clientId, accountId)) {
             result.success = false;
-            result.error = 'parameter error!';
+            result.error = 'Parameter Error!';
             result.errorCode = RespErrorCode.BAD_REQUEST;
             return result;
         }
@@ -67,13 +59,11 @@ export class WalletService {
         return result;
     }
 
-    async listAccounts(
-        clientId: string
-    ): Promise<ListAccountRespDto> {
+    async listAccounts(clientId: string): Promise<ListAccountRespDto> {
         const result: ListAccountRespDto = { success: true };
         if (!await this.clientExists(clientId)) {
             result.success = false;
-            result.error = 'parameter error!';
+            result.error = 'Parameter Error!';
             result.errorCode = RespErrorCode.BAD_REQUEST;
             return result;
         }
@@ -87,14 +77,11 @@ export class WalletService {
         return result;
     }
 
-    async getAccount(
-        clientId: string,
-        accountId: string
-    ): Promise<AccountRespDto> {
+    async getAccount(clientId: string, accountId: string): Promise<AccountRespDto> {
         const result: AccountRespDto = { success: true };
         if (!await this.accountExists(clientId, accountId)) {
             result.success = false;
-            result.error = 'parameter error!';
+            result.error = 'Parameter Error!';
             result.errorCode = RespErrorCode.BAD_REQUEST;
             return result;
         }
@@ -111,7 +98,8 @@ export class WalletService {
         const result: AddressRespDto = { success: true };
         try {
             const provider = this.getProvider(coin);
-            result.address = await provider.getAddress(clientId, accountId);
+            const account = await provider.retrieveAccount(clientId, accountId);
+            result.address = account.address;
         } catch (error) {
             result.success = false;
             result.error = `${error}`;
@@ -129,7 +117,8 @@ export class WalletService {
         const result: BalanceRespDto = { success: true };
         try {
             const provider = this.getProvider(coin);
-            result.balance = await provider.getBalance(clientId, accountId);
+            const account = await provider.retrieveAccount(clientId, accountId);
+            result.balance = account.balance;
         } catch (error) {
             result.success = false;
             result.error = `${error}`;

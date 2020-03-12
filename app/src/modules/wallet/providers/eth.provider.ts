@@ -73,11 +73,9 @@ export class EthProvider extends Provider implements OnApplicationBootstrap {
     private async txAdd(transaction: Transaction): Promise<TxAddActionResult> {
         const eth = transaction as EthereumTransaction;
 
-        const senderRepo = await this.findAccount(eth.sender, this.Flag);
-        const recipientRepo = await this.findAccount(eth.recipient, this.Flag);
-        if (!senderRepo && !recipientRepo) {
-            return null;
-        }
+        const senderRepo = await this.findAccountByAddress(eth.sender);
+        const recipientRepo = await this.findAccountByAddress(eth.recipient);
+        if (!senderRepo && !recipientRepo) { return null; }
         const chainTxIns = await this.ToChainTxAction(eth);
         await this.createChainTxIfNotExists(chainTxIns);
         const result: Account[] = [];

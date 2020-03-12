@@ -6,7 +6,6 @@ import { Platform } from '../../../libs/helpers/bipHelper';
 import { addressIsBitcoin } from '../../../libs/helpers/addressHelper';
 import { BtcService } from '../../../blockchain/btc/btc.service';
 import { Transaction } from '../../../blockchain/common/types';
-import { IService } from '../../../blockchain/common/service.interface';
 import { BitcoinTransaction } from '../../../blockchain/common/types';
 import { PusherService } from '../../../modules/pusher/pusher.service';
 import { PushPlatform } from '../../../modules/pusher/types';
@@ -79,29 +78,18 @@ export class BtcProvider extends Provider implements OnApplicationBootstrap {
         const inRepos: Account[] = [];
         const outRepos: Account[] = [];
         for (const vin of btc.vIns) {
-            if (ins.includes(vin.address)) {
-                continue;
-            }
+            if (ins.includes(vin.address)) { continue; }
             ins.push(vin.address);
-            const accountRepo = await this.findAccount(vin.address, this.Flag);
-            if (accountRepo) {
-                inRepos.push(accountRepo);
-            }
+            const accountRepo = await this.findAccountByAddress(vin.address);
+            if (accountRepo) { inRepos.push(accountRepo); }
         }
         for (const vout of btc.vOuts) {
-            if (outs.includes(vout.address)) {
-                continue;
-            }
+            if (outs.includes(vout.address)) { continue; }
             ins.push(vout.address);
-            const accountRepo = await this.findAccount(vout.address, this.Flag);
-            if (accountRepo) {
-                outRepos.push(accountRepo);
-            }
+            const accountRepo = await this.findAccountByAddress(vout.address);
+            if (accountRepo) { outRepos.push(accountRepo); }
         }
-
-        if (inRepos.length <= 0 && outRepos.length <= 0) {
-            return null;
-        }
+        if (inRepos.length <= 0 && outRepos.length <= 0) { return null; }
 
         const filter: Account[] = [];
         const chainTxIns = await this.ToChainTxAction(btc);
@@ -122,11 +110,11 @@ export class BtcProvider extends Provider implements OnApplicationBootstrap {
             indexIns.address = outRepo.address;
             indexIns.sender = false;
             indexIns.flag = this.Flag;
-            if (await this.ChainTxIndexRepo.save(indexIns)) {
+            if (await this.createChainTxIndexIfNotExists(indexIns)) {
                 filter.push(outRepo);
             }
         }
-        const filterCointainer: string[] = [];
+        const exists: string[] = [];
         return {
             data: {
                 txId: btc.txId,
@@ -136,10 +124,10 @@ export class BtcProvider extends Provider implements OnApplicationBootstrap {
                 vOuts: btc.vOuts
             } as BtcDef,
             accounts: filter.filter((val: Account) => {
-                if (filterCointainer.includes(val.address)) {
+                if (exists.includes(val.address)) {
                     return false;
                 }
-                filterCointainer.push(val.address);
+                exists.push(val.address);
                 return true;
             })
         };

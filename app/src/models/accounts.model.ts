@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
-import { CoinType } from 'src/libs/types';
+import { CoinType } from '../libs/types';
 
 @Entity('accounts')
 export class Account {

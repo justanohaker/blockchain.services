@@ -72,11 +72,9 @@ export class Erc20UsdtProvider extends Provider implements OnApplicationBootstra
     private async txAdd(transaction: Transaction): Promise<TxAddActionResult> {
         const erc20Usdt = transaction as Erc20UsdtTransaction;
 
-        const senderRepo = await this.findAccount(erc20Usdt.sender, this.Flag);
-        const recipientRepo = await this.findAccount(erc20Usdt.recipient, this.Flag);
-        if (!senderRepo && !recipientRepo) {
-            return null;
-        }
+        const senderRepo = await this.findAccountByAddress(erc20Usdt.sender);
+        const recipientRepo = await this.findAccountByAddress(erc20Usdt.recipient);
+        if (!senderRepo && !recipientRepo) { return null; }
         const chainTxIns = await this.ToChainTxAction(erc20Usdt);
         await this.createChainTxIfNotExists(chainTxIns);
         const result: Account[] = [];

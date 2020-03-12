@@ -71,12 +71,9 @@ export class OmniUsdtProvider extends Provider implements OnApplicationBootstrap
 
     private async txAdd(transaction: Transaction): Promise<TxAddActionResult> {
         const omni = transaction as OmniUsdtTransactin;
-        const senderRepo = await this.findAccount(omni.sending, this.Flag);
-        const referenceRepo = await this.findAccount(omni.reference, this.Flag);
-        if (!senderRepo && !referenceRepo) {
-            return null;
-        }
-
+        const senderRepo = await this.findAccountByAddress(omni.sending);
+        const referenceRepo = await this.findAccountByAddress(omni.reference);
+        if (!senderRepo && !referenceRepo) { return null; }
         const chainTxIns = await this.ToChainTxAction(omni);
         await this.createChainTxIfNotExists(chainTxIns);
         const result: Account[] = [];

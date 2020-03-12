@@ -1,7 +1,8 @@
 import { Logger } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { IService } from '../../../blockchain/common/service.interface';
-import { IChainProvider } from './provider.interface';
+import { Transaction, BalanceDef, AccountKeyPair } from '../../../blockchain/common/types';
+import { IServiceProvider } from '../../../blockchain/common/service.provider';
 import {
     Platform,
     bipPrivpubFromMnemonic,
@@ -9,8 +10,6 @@ import {
     bipHexPrivFromxPriv,
     bipWIFFromxPriv
 } from '../../../libs/helpers/bipHelper';
-import { Transaction, BalanceDef, AccountKeyPair } from '../../../blockchain/common/types';
-import { IServiceProvider } from '../../..//blockchain/common/service.provider';
 import { CoinType } from '../../../libs/types';
 import { Client } from '../../../models/clients.model';
 import { User } from '../../../models/users.model';
@@ -20,6 +19,7 @@ import { ChainTx, ChainTxIndex } from '../../../models/transactions.model';
 import { PushPlatform, PushEventType } from '../../../modules/pusher/types';
 import { PusherService } from '../../../modules/pusher/pusher.service';
 import { DespositDto } from '../wallet.dto';
+import { IChainProvider } from './provider.interface';
 import {
     TxDef,
     AddressValidator,
@@ -31,23 +31,36 @@ import {
 
 export class Provider implements IChainProvider, IServiceProvider {
     // BEGIN: override by subclass
+    // Flag - 用于区分不同的Token
     protected readonly Flag: CoinType;
+    // IService - 持有不同Token对于IService的实现，用于与链交易
     protected readonly IService: IService;
+    // Platform - 链平台(Bitcoin, Ethereum)
     protected readonly Platform: Platform;
+    // PushPlatform - 推送平台(Token类型)
     protected readonly PushPlatform: PushPlatform;
+    // AddressValidator - 地址验证器
     protected readonly AddressValidator: AddressValidator;
+    // TxChecker - 交易检测器
     protected readonly TxChecker: TxChecker;
+    // TxAddAction - 交易添加动作
     protected readonly TxAddAction: TxAddAction;
+    // FromChainTxAction - 转换器(ChainTx -> TxDef)
     protected readonly FromChainTxAction: FromChainTxAction;
+    // ToChainTxAction - 转换器(Transaction -> ChainTx)
     protected readonly ToChainTxAction: ToChainTxAction;
+    // Logger - 日志对象
     protected readonly Logger: Logger;
+    // PushService - 通知服务
     protected readonly PushService: PusherService;
+    // BEGIN: Repository对象
     protected readonly ClientRepo: Repository<Client>;
     protected readonly UserRepo: Repository<User>;
     protected readonly AccountRepo: Repository<Account>;
     protected readonly WebHookRepo: Repository<Webhook>;
     protected readonly ChainTxRepo: Repository<ChainTx>;
     protected readonly ChainTxIndexRepo: Repository<ChainTxIndex>;
+    // END
     // END 
     constructor() { }
 
@@ -65,52 +78,23 @@ export class Provider implements IChainProvider, IServiceProvider {
         accountIns.flag = this.Flag;
 
         const resultRepo = await this.AccountRepo.save(accountIns);
+        // Maybe use cache??
         return resultRepo;
     }
 
-    async getAddress(clientId: string, accountId: string): Promise<string> {
-        if (!await this.exists(clientId, accountId)) {
+    async retrieveAccount(clientId: string, accountId: string): Promise<Account> {
+        const accountRepo = await this.findAccount(clientId, accountId);
+        if (!accountRepo) {
             throw new Error('Parameter Error!');
         }
-
-        const repo = await this.AccountRepo.findOne({
-            clientId,
-            accountId,
-            flag: this.Flag
-        });
-        if (!repo) {
-            throw new Error('Parameter Error!');
-        }
-        return repo.address;
-    }
-
-    async getBalance(clientId: string, accountId: string): Promise<string> {
-        if (!await this.exists(clientId, accountId)) {
-            throw new Error('Parameter Error!');
-        }
-        const repo = await this.AccountRepo.findOne({
-            clientId,
-            accountId,
-            flag: this.Flag
-        });
-        if (!repo) {
-            throw new Error('Parameter Error!');
-        }
-        return repo.balance;
+        return accountRepo;
     }
 
     async getTransactions(clientId: string, accountId: string): Promise<string[]> {
         if (!await this.exists(clientId, accountId)) {
             throw new Error('Parameter Error!');
         }
-        const accountRepo = await this.AccountRepo.findOne({
-            clientId,
-            accountId,
-            flag: this.Flag
-        });
-        if (!accountRepo) {
-            throw new Error('Parameter Error!');
-        }
+        const accountRepo = await this.retrieveAccount(clientId, accountId);
         const repos = await this.ChainTxIndexRepo.find({
             address: accountRepo.address,
             flag: this.Flag
@@ -128,14 +112,7 @@ export class Provider implements IChainProvider, IServiceProvider {
         if (!await this.exists(clientId, accountId)) {
             throw new Error('Parameter Error!');
         }
-        const accountRepo = await this.AccountRepo.findOne({
-            clientId,
-            accountId,
-            flag: this.Flag
-        });
-        if (!accountRepo) {
-            throw new Error('Parameter Error!');
-        }
+        const accountRepo = await this.retrieveAccount(clientId, accountId);
         const checkTxExist = await this.ChainTxIndexRepo.count({
             address: accountRepo.address,
             txId,
@@ -144,7 +121,6 @@ export class Provider implements IChainProvider, IServiceProvider {
         if (checkTxExist <= 0) {
             throw new Error('Parameter Error!');
         }
-
         const repo = await this.ChainTxRepo.findOne({
             txId,
             flag: this.Flag
@@ -165,11 +141,7 @@ export class Provider implements IChainProvider, IServiceProvider {
             !await this.exists(clientId, accountId)) {
             throw new Error('Parameter Error!');
         }
-        const accountRepo = await this.AccountRepo.findOne({
-            clientId,
-            accountId,
-            flag: this.Flag
-        });
+        const accountRepo = await this.retrieveAccount(clientId, accountId);
         const keyPair: AccountKeyPair = {
             privateKey: await bipHexPrivFromxPriv(
                 accountRepo.privkey,
@@ -187,9 +159,12 @@ export class Provider implements IChainProvider, IServiceProvider {
             amount,
             feePriority
         });
-        if (!transferResult.success) {
+        if (transferResult == null
+            || !transferResult.success) {
             throw new Error(
-                JSON.stringify(transferResult.error!)
+                transferResult == null
+                    ? 'Unimplemented!'
+                    : JSON.stringify(transferResult.error!)
             );
         }
         // BEGIN: push new transaction created??
@@ -209,19 +184,14 @@ export class Provider implements IChainProvider, IServiceProvider {
         return transferResult.txId!;
     }
 
-    async onNewAccount(accounts: string[]): Promise<void> {
-        this.Logger?.log(`onNewAccount ${JSON.stringify(accounts, null, 2)}`);
-        this.IService?.onNewAccounts(accounts);
-        this.IService?.onUpdateBalances(accounts);
+    async onNewAccount(addresses: string[]): Promise<void> {
+        this.Logger?.log(`onNewAccount ${JSON.stringify(addresses, null, 2)}`);
+        this.IService?.onNewAccounts(addresses);
+        this.IService?.onUpdateBalances(addresses);
         // BEGIN: pusher new Account
-        for (const account of accounts) {
-            const accountRepo = await this.AccountRepo.findOne({
-                address: account,
-                flag: this.Flag
-            });
-            if (!accountRepo) {
-                continue;
-            }
+        for (const address of addresses) {
+            const accountRepo = await this.findAccountByAddress(address);
+            if (!accountRepo) { continue; }
             const webhooks = await this.getWebHooks(
                 accountRepo.clientId,
                 accountRepo.accountId
@@ -241,6 +211,7 @@ export class Provider implements IChainProvider, IServiceProvider {
     }
     // IServiceProvider
     async getAddresses(): Promise<string[]> {
+        // Maybe need cache??
         const repos = await this.AccountRepo.find({
             flag: this.Flag
         });
@@ -256,10 +227,7 @@ export class Provider implements IChainProvider, IServiceProvider {
         for (const bln of newBalances) {
             const { address, balance } = bln;
             const repo = await this.updateBalance(address, balance);
-            if (!repo) {
-                continue;
-            }
-
+            if (!repo) { continue; }
             // BEGIN: push balance changed
             const webhooks = await this.getWebHooks(
                 repo.clientId,
@@ -297,7 +265,6 @@ export class Provider implements IChainProvider, IServiceProvider {
                 if (!addresses.includes(account.address)) {
                     addresses.push(account.address);
                 }
-
                 const webhooks = await this.getWebHooks(
                     account.clientId,
                     account.accountId
@@ -319,14 +286,9 @@ export class Provider implements IChainProvider, IServiceProvider {
     // helpers
     protected async exists(clientId: string, accountId: string): Promise<boolean> {
         const clientRepo = await this.ClientRepo.findOne({ id: clientId });
-        if (!clientRepo) {
-            return false;
-        }
-
+        if (!clientRepo) { return false; }
         const userRepo = await this.UserRepo.findOne({ clientId, accountId });
-        if (!userRepo) {
-            return false;
-        }
+        if (!userRepo) { return false; }
         return true;
     }
 
@@ -341,12 +303,28 @@ export class Provider implements IChainProvider, IServiceProvider {
             address,
             flag: this.Flag
         });
-        if (!accountRepo) {
-            return null;
-        }
-
+        if (!accountRepo) { return null; }
         accountRepo.balance = balance;
         accountRepo = await this.AccountRepo.save(accountRepo);
+        return accountRepo;
+    }
+
+    protected async findAccountByAddress(address: string): Promise<Account> {
+        // Maybe need cache??
+        const accountRepo = await this.AccountRepo.findOne({
+            address,
+            flag: this.Flag
+        });
+        return accountRepo;
+    }
+
+    protected async findAccount(clientId: string, accountId: string): Promise<Account> {
+        // Maybe need cache??
+        const accountRepo = await this.AccountRepo.findOne({
+            clientId,
+            accountId,
+            flag: this.Flag
+        });
         return accountRepo;
     }
 
@@ -358,17 +336,7 @@ export class Provider implements IChainProvider, IServiceProvider {
         if (!found) {
             await this.ChainTxRepo.save(chainTx);
         }
-
         return !!found;
-    }
-
-    protected async findAccount(address: string, flag: CoinType): Promise<Account> {
-        const accountRepo = await this.AccountRepo.findOne({
-            address,
-            flag
-        });
-
-        return accountRepo;
     }
 
     protected async createChainTxIndexIfNotExists(chainTxIndex: ChainTxIndex): Promise<boolean> {
@@ -381,7 +349,6 @@ export class Provider implements IChainProvider, IServiceProvider {
         if (!found) {
             await this.ChainTxIndexRepo.save(chainTxIndex);
         }
-
         return !!found;
     }
 }
