@@ -1,21 +1,22 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { IService } from '../common/service.interface';
 import { TransferDef, TransferResp, BalanceResp, BitcoinTransaction } from '../common/types';
+import { FeePriority } from 'src/libs/types';
 
 import { Buffer } from 'buffer';
 import { ECPair, networks, Psbt } from 'bitcoinjs-lib';
 import Bignumber from 'bignumber.js';
 import coinSelect = require('coinselect');
+import Axios from 'axios';
 
 import Client = require('bitcoin-core');
-import { FeePriority } from 'src/libs/types';
 const client = new Client({
-    host: '47.95.3.22',
+    host: '111.231.105.174',
     port: 8332,
     network: 'regtest',
     username: 'entanmo_bitcoin',
     password: 'Entanmo2018',
-    version: '0.18.0',
+    version: '',
     agentOptions: {},
     wallet: 'sy'
 });
@@ -83,7 +84,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
                             for (let address of vout.scriptPubKey.addresses) {
                                 btcTx.vIns.push({
                                     address: address,
-                                    amount: (new Bignumber(vout.value).div(PRECISION)).toString()
+                                    amount: new Bignumber(vout.value).div(PRECISION).toString()
                                 });
                                 if (this.addresses && this.addresses.includes(address)) {
                                     isRelative = true;
@@ -98,7 +99,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
                             // console.log('scriptPubKey =6=>', vout.scriptPubKey)
                             btcTx.vOuts.push({
                                 address: address,
-                                amount: (new Bignumber(vout.value).div(PRECISION)).toString()
+                                amount: new Bignumber(vout.value).div(PRECISION).toString()
                             });
                             if (this.addresses && this.addresses.includes(address)) {
                                 isRelative = true;
@@ -166,7 +167,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
      */
     async transfer(data: TransferDef): Promise<TransferResp> {
         try {
-            let unspents = await client.command('listunspent', { addresses: [data.keyPair.address] });
+            let unspents = await client.command('listunspent', 0, 999999, [data.keyPair.address]);
             console.log('listunspent ==>', unspents)
             if (unspents.length === 0) {
                 throw new Error('listunspent is empty');
@@ -181,16 +182,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
             let txid = await client.command('sendrawtransaction', txhash);
             console.log('sendrawtransaction ==>', txid)
 
-            // let txdata2 = await this.generateTxData2(data, unspents);
-            // // console.log('txdata2 ==>', txdata2)
-
-            // let txhash2 = await this.buildTx(data, txdata2);
-            // // console.log('txhash2 ==>', txhash2)
-
-            // let txid2 = await client.command('sendrawtransaction', txhash2);
-            // console.log('sendrawtransaction ==>', txid2)
-
-            return { success: true, txId: txid };
+            return { success: true, txId: "txid" };
         } catch (error) {
             console.log(error)
             return { success: false, error };
@@ -199,20 +191,20 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
 
     private async generateTxData(data: TransferDef, unspents) {
         try {
-            let feeRate = 10;
+            let feeRate = await this.getFeeRate(data.feePriority);
             let utxos = [];
             for (let unspent of unspents) {
-                let txHex = await client.command('getrawtransaction', { txid: unspent.txid });
+                let txHex = await client.command('getrawtransaction', unspent.txid);
                 utxos.push({
                     txid: unspent.txid,
                     vout: unspent.vout,
-                    value: unspent.amount / PRECISION,
+                    value: new Bignumber(unspent.amount).div(PRECISION).toNumber(),
                     nonWitnessUtxo: Buffer.from(txHex, 'hex')
                 });
             }
             let targets = [{
                 address: 'mfyu2dWfZEuZQkHmMD5cuPoa1uaEA6Bfin',
-                value: Number(data.amount)
+                value: new Bignumber(data.amount).toNumber()
             }];
             let txdata = coinSelect(utxos, targets, feeRate);
             if (!txdata.inputs || !txdata.outputs) {
@@ -220,51 +212,6 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
             }
 
             return txdata;
-        } catch (error) {
-            throw error;
-        }
-    }
-
-    private async generateTxData2(data: TransferDef, unspents) {
-        try {
-            let getfee = await this.getFee(data.feePriority);
-            let fee = new Bignumber(getfee);
-            let total = new Bignumber(0);
-            let amount = new Bignumber(data.amount);
-            let trans = amount.plus(fee);
-            let rest = new Bignumber(0);
-            let inputs = [];
-            for (let unspent of unspents) {
-                let txHex = await client.command('getrawtransaction', { txid: unspent.txid });
-                inputs.push({
-                    txid: unspent.txid,
-                    vout: unspent.vout,
-                    nonWitnessUtxo: Buffer.from(txHex, 'hex')
-                });
-
-                total = total.plus(new Bignumber(unspent.amount).div(PRECISION));
-                if (total.gte(trans)) {
-                    rest = total.minus(trans);
-                    break;
-                }
-            }
-            if (total.lt(trans)) {
-                throw new Error('not enough balance');
-            }
-
-            let outputs = [];
-            outputs.push({
-                address: data.address,
-                value: amount.toNumber()
-            });
-            if (rest.times(PRECISION).toNumber() > 0) {
-                outputs.push({
-                    address: data.keyPair.address,
-                    value: rest.toNumber()
-                });
-            }
-
-            return { inputs, outputs, fee: getfee };
         } catch (error) {
             throw error;
         }
@@ -302,12 +249,26 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
         }
     }
 
-    private async buildTx2(data: TransferDef, txdata) {
-
-    }
-
     // 手续费计算
-    private async getFee(fee: FeePriority) {
-        return 1000;
+    private async getFeeRate(fee: FeePriority) {
+        let feeRate = 40;
+        let feedata = await Axios.get('https://bitcoinfees.earn.com/api/v1/fees/recommended');
+        if (feedata.status == 200) {
+            switch (fee) {
+                case FeePriority.HIGH:
+                    feeRate = feedata.data.fastestFee;
+                    break;
+                case FeePriority.NORMAL:
+                    feeRate = feedata.data.halfHourFee;
+                    break;
+                case FeePriority.LOWER:
+                    feeRate = feedata.data.hourFee;
+                    break;
+                default:
+                    break;
+            }
+        }
+        console.log('feeRate ==>', feeRate)
+        return feeRate;
     }
 }
