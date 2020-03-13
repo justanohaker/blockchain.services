@@ -119,23 +119,23 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
             }
 
             let payload = await client.command('omni_createpayload_simplesend', PROPERTY, data.amount);
-            console.log('omni_createpayload_simplesend ==>', payload);
+            // console.log('omni_createpayload_simplesend ==>', payload);
 
             let txhash = await client.command('createrawtransaction', utxos, {});
-            console.log('createrawtransaction ==>', txhash)
+            // console.log('createrawtransaction ==>', txhash)
 
             let rawtx = await client.command('omni_createrawtx_opreturn', txhash, payload);
-            console.log('omni_createrawtx_opreturn ==>', rawtx);
+            // console.log('omni_createrawtx_opreturn ==>', rawtx);
 
             let rawtx2 = await client.command('omni_createrawtx_reference', rawtx, data.address);
-            console.log('omni_createrawtx_reference ==>', rawtx2);
+            // console.log('omni_createrawtx_reference ==>', rawtx2);
 
             let fee = this.getFee(data.feePriority);
             let rawtx3 = await client.command('omni_createrawtx_change', rawtx2, utxos, data.keyPair.address, fee);
-            console.log('omni_createrawtx_change ==>', rawtx3);
+            // console.log('omni_createrawtx_change ==>', rawtx3);
 
             let txsign = await client.command('signrawtransactionwithkey', rawtx3, [data.keyPair.wif]);
-            console.log('signrawtransactionwithkey ==>', txsign)
+            // console.log('signrawtransactionwithkey ==>', txsign)
 
             let txHash = await client.command('sendrawtransaction', txsign.hex);
             console.log('sendrawtransaction ==>', txHash)
