@@ -4,9 +4,8 @@ import { TransferDef, TransferResp, BalanceResp, BitcoinTransaction } from '../c
 
 import { Buffer } from 'buffer';
 import { ECPair, networks, Psbt } from 'bitcoinjs-lib';
-import axios from 'axios';
-import { w3cwebsocket } from 'websocket';
-import Bignumber from 'bignumber.js'
+import Bignumber from 'bignumber.js';
+import coinSelect = require('coinselect');
 
 import Client = require('bitcoin-core');
 import { FeePriority } from 'src/libs/types';
@@ -32,25 +31,15 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
     }
 
     async onModuleInit() {
-        await this.startMonitor();
-    }
-
-    async onModuleDestroy() {
-        await this.stopMonitor();
-    }
-
-    // 启动监听数据变更
-    async startMonitor() {
         await this.monitor();
         this.interval = setInterval(() => {
             this.monitor();
         }, 60000);
     }
 
-    // 停止监听数据变更
-    async stopMonitor() {
+    async onModuleDestroy() {
         if (this.interval !== null) {
-            clearInterval(this.interval)
+            clearInterval(this.interval);
         }
     }
 
@@ -87,15 +76,11 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
                 };
                 let isRelative = false;
                 for (let vin of tx.vin) {
-                    // console.log('vin =4=>', vin)
                     if (vin.txid) {
-                        let txVin = await client.command('getrawtransaction', vin.txid, true)
-                        // for (let vout of txVin.vout) {
+                        let txVin = await client.command('getrawtransaction', vin.txid, true);
                         let vout = txVin.vout[vin.vout];
-                        // console.log('vout =5=>', vout)
                         if (vout.scriptPubKey && vout.scriptPubKey.addresses) {
                             for (let address of vout.scriptPubKey.addresses) {
-                                // console.log('scriptPubKey =6=>', vout.scriptPubKey)
                                 btcTx.vIns.push({
                                     address: address,
                                     amount: (new Bignumber(vout.value).div(PRECISION)).toString()
@@ -104,12 +89,10 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
                                     isRelative = true;
                                 }
                             }
-                        }
-                        // }
+                        };
                     }
                 }
                 for (let vout of tx.vout) {
-                    // console.log('vout =5=>', vout)
                     if (vout.scriptPubKey && vout.scriptPubKey.addresses) {
                         for (let address of vout.scriptPubKey.addresses) {
                             // console.log('scriptPubKey =6=>', vout.scriptPubKey)
@@ -141,7 +124,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
 
         try {
             for (let address of addresses) {
-                await client.command('importaddress', address, '', true)
+                await client.command('importaddress', address, '', false)
             }
         } catch (error) {
             // do nothing
@@ -179,29 +162,41 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
 
     /**
      * @note override
-     * 查询交易信息
-     * @param id - 交易id
-     */
-    async getTxInfo(id: string) {
-        try {
-            let tx = await client.command('getrawtransaction', id, true)
-            return { success: true, result: tx };
-        } catch (error) {
-            throw error;
-        }
-    }
-
-    /**
-     * @note override
      * @param data 
      */
     async transfer(data: TransferDef): Promise<TransferResp> {
         try {
-            let result = await this.transferByPsbt(data);
-            // console.log(result)
+            let result = await this.transferByPsbtCoinselect(data);
+            console.log(result)
             return { success: true, txId: result };
         } catch (error) {
+            console.log(error)
             return { success: false, error };
+        }
+    }
+
+    private async transferBySign(data: TransferDef) {
+        try {
+            let unspents = await client.command('listunspent', 0, 999999, [data.keyPair.address]);
+            console.log('listunspent ==>', unspents)
+            if (unspents.length === 0) {
+                throw new Error('listunspent is empty');
+            }
+
+            let utxos = [];
+            for (let unspent of unspents) {
+                utxos.push({
+                    txid: unspent.txid,
+                    vout: unspent.vout,
+                    value: unspent.amount,
+                    scriptPubKey: unspent.scriptPubKey,
+                });
+            }
+            let txhash = await client.command('createrawtransaction', utxos);
+            console.log('createrawtransaction ==>', txhash)
+
+        } catch (error) {
+            throw error;
         }
     }
 
@@ -252,6 +247,69 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
                     value: rest.toNumber()
                 });
             }
+
+            // 签名psbt
+            const ecpair = ECPair.fromPrivateKey(Buffer.from(data.keyPair.privateKey, 'hex'), { network: networks.testnet });
+            psbt.signAllInputs(ecpair);
+            psbt.validateSignaturesOfAllInputs();
+            psbt.finalizeAllInputs();
+            const psbtHash = psbt.extractTransaction().toHex();
+            // console.log('psbtHash ==>', psbtHash)
+
+            //发送交易
+            let txHash = await client.command('sendrawtransaction', psbtHash);
+            // console.log('sendrawtransaction ==>', txHash)
+
+            return txHash;
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    private async transferByPsbtCoinselect(data: TransferDef) {
+        try {
+            let unspents = await client.command('listunspent', { addresses: [data.keyPair.address] });
+            console.log('listunspent ==>', unspents)
+            if (unspents.length === 0) {
+                throw new Error('listunspent is empty');
+            }
+
+            let feeRate = 10;
+            let utxos = [];
+            for (let unspent of unspents) {
+                let txHex = await client.command('getrawtransaction', { txid: unspent.txid });
+                utxos.push({
+                    txId: unspent.txid,
+                    vout: unspent.vout,
+                    value: unspent.amount / PRECISION,
+                    nonWitnessUtxo: Buffer.from(txHex, 'hex')
+                });
+            }
+            let targets = [{
+                address: 'mfyu2dWfZEuZQkHmMD5cuPoa1uaEA6Bfin',
+                value: 10
+            }];
+            let { inputs, outputs, fee } = coinSelect(utxos, targets, feeRate);
+            if (!inputs || !outputs) return;
+
+            let psbt = new Psbt({ network: networks.testnet });
+            inputs.forEach(input =>
+                psbt.addInput({
+                    hash: input.txId,
+                    index: input.vout,
+                    nonWitnessUtxo: input.nonWitnessUtxo,
+                })
+            );
+            outputs.forEach(output => {
+                if (!output.address) {
+                    output.address = data.keyPair.address;
+                }
+                psbt.addOutput({
+                    address: output.address,
+                    value: output.value,
+                });
+            });
+
 
             // 签名psbt
             const ecpair = ECPair.fromPrivateKey(Buffer.from(data.keyPair.privateKey, 'hex'), { network: networks.testnet });

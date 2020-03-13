@@ -104,6 +104,7 @@ export type OmniUsdtTransactin = {
     sending: string;                // 交易发送方
     reference: string;              // 交易接收方
     amount: string;                 // 交易金额
+    fee: string;                    // 交易手续费
 }
 
 // 交易结构定义
