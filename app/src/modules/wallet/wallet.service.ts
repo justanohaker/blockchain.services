@@ -102,7 +102,6 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
         result.accountId = accountId;
 
         const allTokenAccounts = await this.allTokenAccounts(clientId, accountId);
-        console.log('allTokenAccounts:', JSON.stringify(allTokenAccounts, null, 2));
         result.tokens = [];
         for (const tokenAccount of allTokenAccounts) {
             result.tokens.push({

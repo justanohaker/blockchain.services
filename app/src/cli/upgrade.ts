@@ -362,11 +362,13 @@ async function updateTransaction(conns: Connection[]) {
 
 async function main() {
     const conns = await getConnection();
+    console.log('Sync Client...');
     await updateClient(conns);
+    console.log('Sync Account...');
     await updateAccount(conns);
+    console.log('Suync Transaction...');
     await updateTransaction(conns);
-    // const clients = await oldConn.manager.find(OldClient);
-    // console.log('Client:', JSON.stringify(clients, null, 2));
+    console.log('Sync Finished! Enjoy...');
 }
 
 main();
