@@ -105,3 +105,4 @@ dist
 
 # test sqlite file
 *.sqlite
+*.sqlite.backup

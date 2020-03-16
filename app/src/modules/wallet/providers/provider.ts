@@ -83,10 +83,11 @@ export class Provider implements IChainProvider, IServiceProvider {
     }
 
     async retrieveAccount(clientId: string, accountId: string): Promise<Account> {
-        const accountRepo = await this.findAccount(clientId, accountId);
-        if (!accountRepo) {
-            throw new Error('Parameter Error!');
-        }
+        const accountRepo = await this.AccountRepo.findOne({
+            clientId,
+            accountId,
+            flag: this.Flag
+        });
         return accountRepo;
     }
 
@@ -313,16 +314,6 @@ export class Provider implements IChainProvider, IServiceProvider {
         // Maybe need cache??
         const accountRepo = await this.AccountRepo.findOne({
             address,
-            flag: this.Flag
-        });
-        return accountRepo;
-    }
-
-    protected async findAccount(clientId: string, accountId: string): Promise<Account> {
-        // Maybe need cache??
-        const accountRepo = await this.AccountRepo.findOne({
-            clientId,
-            accountId,
             flag: this.Flag
         });
         return accountRepo;

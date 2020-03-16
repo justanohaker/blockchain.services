@@ -1,5 +1,6 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { IsNumberString, IsString, IsIn } from "class-validator";
+import { Account } from '../../models/accounts.model';
 import { ResponseBase } from "../../libs/responseHelper";
 import { CoinType, FeePriority } from '../../libs/types';
 
@@ -78,8 +79,18 @@ export class DespositDto {
 }
 
 // response
-export class AddAccountRespDto extends ResponseBase {
+export type TokenInfo = {
+    [key: string]: string;
+}
 
+export type TokenAccount = {
+    token: CoinType;
+    account: Account;
+}
+
+export class AddAccountRespDto extends ResponseBase {
+    accountId?: string;
+    addresses?: TokenInfo;
 }
 
 export class ListAccountRespDto extends ResponseBase {
@@ -88,7 +99,7 @@ export class ListAccountRespDto extends ResponseBase {
 
 export class AccountRespDto extends ResponseBase {
     accountId?: string;
-    // TODO  
+    tokens?: TokenInfo[];
 }
 
 export class AddressRespDto extends ResponseBase {

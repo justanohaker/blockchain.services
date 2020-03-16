@@ -72,6 +72,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
                     txId: tx.txid,
                     blockHeight: block.height,
                     blockTime: tx.blocktime,
+                    fee: tx.fee,
                     vIns: [],
                     vOuts: []
                 };

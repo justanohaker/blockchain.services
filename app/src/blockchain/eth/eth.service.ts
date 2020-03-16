@@ -1,8 +1,8 @@
 import { Injectable, Logger, OnApplicationBootstrap, OnModuleInit } from '@nestjs/common';
 import { NewWalletDto, sendCoinDto, balanceDto, transactionDto } from './eth.dto';
-import { BalanceDef, BalanceResp, TransferDef, TransferResp, EthereumTransaction ,Erc20UsdtTransaction} from '../common/types';
+import { BalanceDef, BalanceResp, TransferDef, TransferResp, EthereumTransaction, Erc20UsdtTransaction } from '../common/types';
 import { IService } from '../common/service.interface';
-import {FeePriority} from '../../libs/types'
+import { FeePriority } from '../../libs/types'
 import { ethers, utils } from 'ethers';
 import * as usdt_config from "src/blockchain/erc20-tokens/configs/erc20-usdt.json";
 const UPDATE_TIMEOUT: number = 2 * 1000;
@@ -15,13 +15,13 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
     private httpProvider: ethers.providers.Provider
     private interval_count = 5//同时获取tx数量的异步数量
     private tx_cache: Array<string> = new Array();
-    private contracts:Array<string> = new Array();
+    private contracts: Array<string> = new Array();
     constructor() {
         super();
         this.httpProvider = //ethers.getDefaultProvider('ropsten');
-        new ethers.providers.JsonRpcProvider("http://111.231.105.174:8545");//=http://127.0.0.1:8545
+            new ethers.providers.JsonRpcProvider("http://111.231.105.174:8545");//=http://127.0.0.1:8545
         this.contracts.push(usdt_config.address)
-    
+
     }
 
     onModuleInit() {
@@ -42,7 +42,7 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
     }
 
     onApplicationBootstrap() {
-         this.startTx();
+        this.startTx();
     }
 
     async startTx() {
@@ -64,38 +64,40 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
                             txId: tx.hash,                      // 交易Id
                             blockHeight: tx.blockNumber,        // 交易打包高度
                             nonce: tx.nonce,                    // 交易打包时间
+                            fee: 'Unimplemented!',              // 交易费
                             sender: tx.from,                    // 交易发送者地址
                             recipient: tx.to,                   // 交易接收者地址
                             amount: tx.value.toString()         // 转账金额
                         }
-                        if(this.contracts.includes(tx.to)){
+                        if (this.contracts.includes(tx.to)) {
                             const decoder = new InputDataDecoder(usdt_config.abi);
                             const transfer = decoder.decodeData(tx.data);
-                            let to_address = ethers.utils.getAddress("0x"+transfer["inputs"][0]);
+                            let to_address = ethers.utils.getAddress("0x" + transfer["inputs"][0]);
                             let amount = transfer["inputs"][1].toString()
                             let transaction: Erc20UsdtTransaction = {
                                 type: "ethereum",                   // 以太坊主网 - 标记
-                                sub: "erc20-usdt",                         // 以太坊代币ETH - 标记
+                                sub: "erc20-usdt",                  // 以太坊代币ETH - 标记
                                 txId: tx.hash,                      // 交易Id
                                 blockHeight: tx.blockNumber,        // 交易打包高度
+                                fee: 'Unimplemented!',              // TODO: 交易费
                                 sender: tx.from,                    // 交易发送者地址
-                                recipient: to_address,                   // 交易接收者地址
+                                recipient: to_address,              // 交易接收者地址
                                 amount: amount //.div( this.decimals).toString()         // 转账金额
                             }
                             if (this.addresses && (
                                 this.addresses.includes(transaction.sender) ||
                                 this.addresses.includes(transaction.recipient)
                             )) {
-                            console.log('[[[Erc20Usdt loopTx]]]:', JSON.stringify(transaction))
-                            this.provider.onNewTransaction([transaction]);
+                                console.log('[[[Erc20Usdt loopTx]]]:', JSON.stringify(transaction))
+                                this.provider.onNewTransaction([transaction]);
                             }
-                        }else if (this.addresses && (
+                        } else if (this.addresses && (
                             this.addresses.includes(transaction.sender) ||
                             this.addresses.includes(transaction.recipient)
                         )) {
-                                console.log('[[[EthService loopTx]]] original tx:', JSON.stringify(tx));
-                                console.log('[[[EthService loopTx]]]:', JSON.stringify(transaction));
-                                this.provider.onNewTransaction([transaction]);
+                            console.log('[[[EthService loopTx]]] original tx:', JSON.stringify(tx));
+                            console.log('[[[EthService loopTx]]]:', JSON.stringify(transaction));
+                            this.provider.onNewTransaction([transaction]);
                         }
                     }
                 )
@@ -143,18 +145,19 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
         return transaction
     }
     getFeeLevel() {
-        return {"fast":GASPRICE['2'],
-                "normal":GASPRICE['1'],
-                 "slow":GASPRICE['0']
-               }
+        return {
+            "fast": GASPRICE['2'],
+            "normal": GASPRICE['1'],
+            "slow": GASPRICE['0']
+        }
     }
- 
+
     /**
      * @note override
      * @param data 
      */
     async transfer(param: TransferDef): Promise<TransferResp> {
-        let nonce = await this.httpProvider.getTransactionCount(param.keyPair.address)        
+        let nonce = await this.httpProvider.getTransactionCount(param.keyPair.address)
         let transaction = {
             nonce: nonce,
             gasLimit: 21000,
@@ -177,11 +180,11 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
         return { success: true, txId: tx.hash }
     }
 }
-function getFee(param){
+function getFee(param) {
     switch (param) {
-        case FeePriority.HIGH :
+        case FeePriority.HIGH:
             return GASPRICE["2"];
-         case FeePriority.NORMAL:
+        case FeePriority.NORMAL:
             return GASPRICE["1"];
         case FeePriority.LOWER:
             return GASPRICE["0"];
@@ -189,8 +192,8 @@ function getFee(param){
             return GASPRICE["1"];
     }
 }
-export const  GASPRICE ={
-    "2":   "30000000000",//快
-    "1" :   "15000000000",//普通
-    "0" :    "5000000000",//慢
+export const GASPRICE = {
+    "2": "30000000000",//快
+    "1": "15000000000",//普通
+    "0": "5000000000",//慢
 }

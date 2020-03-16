@@ -131,9 +131,9 @@ export class NotificationController {
         }
     }
 
-    @Post('webhook')
-    async webhookPostTest(@Body() body: any) {
-        // console.log('[NotificationController] WebHook:', body);
-        this.logger.log(`WebHook: ${JSON.stringify(body, null, 2)}`);
-    }
+    // @Post('webhook')
+    // async webhookPostTest(@Body() body: any) {
+    //     // console.log('[NotificationController] WebHook:', body);
+    //     this.logger.log(`WebHook: ${JSON.stringify(body, null, 2)}`);
+    // }
 }
