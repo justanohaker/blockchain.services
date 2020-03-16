@@ -67,19 +67,20 @@ export class Erc20UsdtService extends IService implements OnApplicationBootstrap
         const transfer = decoder.decodeData(tx.data);
         let to_address = "0x" + transfer["inputs"][0]
         let amount = transfer["inputs"][1].toString()
-        console.log(to_address, amount)
-        console.log(tx)
+        let costWei = tx.gasPrice.mul(tx.gasLimit)
+        // console.log(to_address, amount)
+        // console.log(tx)
         let transaction: Erc20UsdtTransaction = {
             type: "ethereum",                   // 以太坊主网 - 标记
             sub: "erc20_usdt",                         // 以太坊代币ETH - 标记
             txId: tx.hash,                      // 交易Id
             blockHeight: tx.blockNumber,        // 交易打包高度
-            fee: '',                            // TODO: need transaction fee
+            fee: costWei.toString(),                            // TODO: need transaction fee
             sender: tx.from,                    // 交易发送者地址
             recipient: to_address,                   // 交易接收者地址
             amount: amount //.div( this.decimals).toString()         // 转账金额
         }
-
+        console.log(JSON.stringify(transaction))
         return transaction
     }
     getFeeLevel() {
@@ -95,29 +96,9 @@ export class Erc20UsdtService extends IService implements OnApplicationBootstrap
      * @param data 
      */
     async transfer(param: TransferDef): Promise<TransferResp> {
-        // let nonce = await this.httpProvider.getTransactionCount(param.keyPair.address)        
-        // let transaction = {
-        //     nonce: nonce,
-        //     gasLimit: 21000,
-        //     gasPrice: utils.bigNumberify(getFee(param.feePriority)),// Gwei   ,slow 5000000000 normal 15000000000 fast 30000000000
-        //     to: param.address,
-        //     value: utils.bigNumberify(param.amount),//wei utils.parseEther("1.0"),
-        //     chainId: ethers.utils.getNetwork('ropsten').chainId
-        // }
         let wallet = new ethers.Wallet(param.keyPair.privateKey, this.httpProvider);
         let contractWithSigner = this.contract.connect(wallet);
         let tx = await contractWithSigner.functions.transfer(param.address, ethers.utils.bigNumberify(param.amount));
-        // console.log(transaction);
-        // let wallet2 = new ethers.Wallet(param.keyPair.privateKey);
-        // let signedTransaction = await wallet2.sign(transaction)
-        // let tx = await this.httpProvider.sendTransaction(signedTransaction)
-        // console.log('tx:', tx);
-        // this.httpProvider.waitForTransaction(tx.hash, 1).then(
-        //     (receipt) => {
-        //         let sendaddress = receipt.from
-        //         console.log(receipt);
-        //     }
-        // )
         return { success: true, txId: tx.hash }
     }
 }

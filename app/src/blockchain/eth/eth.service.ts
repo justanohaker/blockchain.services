@@ -53,18 +53,19 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
                 // console.log("tx interval_count ",this.interval_count)
                 return
             }
-
+           
             const txid = this.tx_cache.shift();
             try {
                 this.httpProvider.getTransaction(txid).then(
                     (tx) => {
+                        let costWei = tx.gasPrice.mul(tx.gasLimit)
                         let transaction: EthereumTransaction = {
                             type: "ethereum",                   // 以太坊主网 - 标记
                             sub: "eth",                         // 以太坊代币ETH - 标记
                             txId: tx.hash,                      // 交易Id
                             blockHeight: tx.blockNumber,        // 交易打包高度
                             nonce: tx.nonce,                    // 交易打包时间
-                            fee: 'Unimplemented!',              // 交易费
+                            fee: costWei.toString(),              // 交易费
                             sender: tx.from,                    // 交易发送者地址
                             recipient: tx.to,                   // 交易接收者地址
                             amount: tx.value.toString()         // 转账金额
@@ -74,12 +75,13 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
                             const transfer = decoder.decodeData(tx.data);
                             let to_address = ethers.utils.getAddress("0x" + transfer["inputs"][0]);
                             let amount = transfer["inputs"][1].toString()
+                            if(transfer["method"] != "transfer") return
                             let transaction: Erc20UsdtTransaction = {
                                 type: "ethereum",                   // 以太坊主网 - 标记
                                 sub: "erc20_usdt",                  // 以太坊代币ETH - 标记
                                 txId: tx.hash,                      // 交易Id
                                 blockHeight: tx.blockNumber,        // 交易打包高度
-                                fee: 'Unimplemented!',              // TODO: 交易费
+                                fee: costWei.toString(),              // TODO: 交易费
                                 sender: tx.from,                    // 交易发送者地址
                                 recipient: to_address,              // 交易接收者地址
                                 amount: amount //.div( this.decimals).toString()         // 转账金额
