@@ -168,30 +168,12 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
      */
     async transfer(data: TransferDef): Promise<TransferResp> {
         try {
-            let unspents = await client.command('listunspent', 0, 999999, [data.keyPair.address]);
-            console.log('listunspent ==>', unspents)
+            let unspents = await client.command('listunspent', 0, 99999999, [data.keyPair.address]);
+            // console.log('listunspent ==>', unspents)
             if (unspents.length === 0) {
                 throw new Error('listunspent is empty');
             }
 
-            let txdata = await this.generateTxData(data, unspents);
-            // console.log('txdata ==>', txdata)
-
-            let txhash = await this.buildTx(data, txdata);
-            // console.log('txhash ==>', txhash)
-
-            let txid = await client.command('sendrawtransaction', txhash);
-            console.log('sendrawtransaction ==>', txid)
-
-            return { success: true, txId: "txid" };
-        } catch (error) {
-            console.log(error)
-            return { success: false, error };
-        }
-    }
-
-    private async generateTxData(data: TransferDef, unspents) {
-        try {
             let feeRate = await this.getFeeRate(data.feePriority);
             let utxos = [];
             for (let unspent of unspents) {
@@ -204,23 +186,14 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
                 });
             }
             let targets = [{
-                address: 'mfyu2dWfZEuZQkHmMD5cuPoa1uaEA6Bfin',
+                address: data.address,
                 value: new Bignumber(data.amount).toNumber()
             }];
-            let txdata = coinSelect(utxos, targets, feeRate);
-            if (!txdata.inputs || !txdata.outputs) {
+            let { inputs, outputs, fee } = coinSelect(utxos, targets, feeRate);
+            if (!inputs || !outputs) {
                 throw new Error('tansfer data error');
             }
-
-            return txdata;
-        } catch (error) {
-            throw error;
-        }
-    }
-
-    private async buildTx(data: TransferDef, txdata) {
-        try {
-            let { inputs, outputs, fee } = txdata;
+            
             let psbt = new Psbt({ network: networks.testnet });
             inputs.forEach(input =>
                 psbt.addInput({
@@ -242,15 +215,18 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
             psbt.signAllInputs(ecpair);
             psbt.validateSignaturesOfAllInputs();
             psbt.finalizeAllInputs();
-            const psbtHash = psbt.extractTransaction().toHex();
+            const txhash = psbt.extractTransaction().toHex();
 
-            return psbtHash;
+            let txid = await client.command('sendrawtransaction', txhash);
+            console.log('sendrawtransaction ==>', txid)
+
+            return { success: true, txId: "txid" };
         } catch (error) {
-            throw error;
+            console.log(error)
+            return { success: false, error };
         }
     }
 
-    // 手续费计算
     private async getFeeRate(fee: FeePriority) {
         let feeRate = 40;
         let feedata = await Axios.get('https://bitcoinfees.earn.com/api/v1/fees/recommended');
