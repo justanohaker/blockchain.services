@@ -1,8 +1,7 @@
 import { Injectable, OnApplicationBootstrap, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CoinType } from '../../../libs/types';
-import { Platform } from '../../../libs/helpers/bipHelper';
+import { Token } from '../../../libs/types';
 import { addressIsEthereum } from '../../../libs/helpers/addressHelper';
 import { Erc20UsdtService } from '../../../blockchain/erc20-tokens/erc20-usdt/erc20-usdt.service';
 import { Transaction } from '../../../blockchain/common/types';
@@ -47,8 +46,7 @@ export class Erc20UsdtProvider extends Provider implements OnApplicationBootstra
     }
 
     // BEGIN: override properties
-    get Flag(): CoinType { return CoinType.ERC20_USDT; }
-    get Platform(): Platform { return Platform.ETHEREUM; }
+    get Token(): Token { return Token.ERC20_USDT; }
     get PushPlatform(): PushPlatform { return PushPlatform.ERC20_USDT; }
     get AddressValidator(): AddressValidator { return addressIsEthereum; }
     get TxChecker(): TxChecker { return this.txCheck; }
@@ -66,7 +64,7 @@ export class Erc20UsdtProvider extends Provider implements OnApplicationBootstra
 
     private async txCheck(transaction: Transaction): Promise<boolean> {
         const btcTr = transaction as Erc20UsdtTransaction;
-        return (btcTr.type === 'ethereum' && btcTr.sub === 'erc20-usdt');
+        return (btcTr.type === 'ethereum' && btcTr.sub === 'erc20_usdt');
     }
 
     private async txAdd(transaction: Transaction): Promise<TxAddActionResult> {
@@ -81,16 +79,16 @@ export class Erc20UsdtProvider extends Provider implements OnApplicationBootstra
         const senderIndexIns = new ChainTxIndex();
         senderIndexIns.txId = erc20Usdt.txId;
         senderIndexIns.address = erc20Usdt.sender;
-        senderIndexIns.sender = true;
-        senderIndexIns.flag = this.Flag;
+        senderIndexIns.isSender = true;
+        senderIndexIns.token = this.Token;
         if (await this.createChainTxIndexIfNotExists(senderIndexIns)) {
             result.push(senderRepo);
         }
         const recipientIndexIns = new ChainTxIndex();
         recipientIndexIns.txId = erc20Usdt.txId;
         recipientIndexIns.address = erc20Usdt.recipient;
-        recipientIndexIns.sender = false;
-        recipientIndexIns.flag = this.Flag;
+        recipientIndexIns.isSender = false;
+        recipientIndexIns.token = this.Token;
         if (await this.createChainTxIndexIfNotExists(recipientIndexIns)) {
             result.push(recipientRepo);
         }
@@ -116,13 +114,13 @@ export class Erc20UsdtProvider extends Provider implements OnApplicationBootstra
             recipient: src.recipient,
             amount: src.amount
         } as ChainTxERC20Data;
-        chainTxIns.flag = this.Flag;
+        chainTxIns.token = this.Token;
         return chainTxIns;
     }
 
     private async fromChainTx(transaction: ChainTx): Promise<ERC20UsdtDef> {
-        const { txId, txData, flag } = transaction;
-        if (flag !== CoinType.BITCOIN) {
+        const { txId, txData, token } = transaction;
+        if (token !== Token.BITCOIN) {
             return null;
         }
         const erc20Data = txData as ChainTxERC20Data;

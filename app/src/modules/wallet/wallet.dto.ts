@@ -2,7 +2,7 @@ import { ApiProperty } from "@nestjs/swagger";
 import { IsNumberString, IsString, IsIn } from "class-validator";
 import { Account } from '../../models/accounts.model';
 import { ResponseBase } from "../../libs/responseHelper";
-import { CoinType, FeePriority } from '../../libs/types';
+import { Token, FeePriority } from '../../libs/types';
 
 // request
 export class AddAccountDto {
@@ -26,22 +26,22 @@ export class IdParam {
 export class CoinParam extends IdParam {
     @ApiProperty({
         description: '区块链平台(Bitcoin, Ethereum)',
-        example: CoinType.BITCOIN,
+        example: Token.BITCOIN,
         enum: [
-            CoinType.BITCOIN,
-            CoinType.ETHEREUM,
-            CoinType.OMNI_USDT,
-            CoinType.ERC20_USDT
+            Token.BITCOIN,
+            Token.ETHEREUM,
+            Token.OMNI_USDT,
+            Token.ERC20_USDT
         ]
     })
     @IsString()
     @IsIn([
-        CoinType.BITCOIN,
-        CoinType.ETHEREUM,
-        CoinType.OMNI_USDT,
-        CoinType.ERC20_USDT
+        Token.BITCOIN,
+        Token.ETHEREUM,
+        Token.OMNI_USDT,
+        Token.ERC20_USDT
     ])
-    coin: CoinType;
+    coin: Token;
 }
 
 export class TxidParam extends CoinParam {
@@ -84,7 +84,7 @@ export type TokenInfo = {
 }
 
 export type TokenAccount = {
-    token: CoinType;
+    token: Token;
     account: Account;
 }
 

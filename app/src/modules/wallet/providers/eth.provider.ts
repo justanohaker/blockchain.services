@@ -1,8 +1,7 @@
 import { Injectable, OnApplicationBootstrap, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CoinType } from '../../../libs/types';
-import { Platform } from '../../../libs/helpers/bipHelper';
+import { Token } from '../../../libs/types';
 import { addressIsEthereum } from '../../../libs/helpers/addressHelper';
 import { EthService } from '../../../blockchain/eth/eth.service';
 import { Transaction } from '../../../blockchain/common/types';
@@ -48,8 +47,7 @@ export class EthProvider extends Provider implements OnApplicationBootstrap {
     }
 
     // BEGIN: override properties
-    get Flag(): CoinType { return CoinType.ETHEREUM; }
-    get Platform(): Platform { return Platform.ETHEREUM; }
+    get Token(): Token { return Token.ETHEREUM; }
     get PushPlatform(): PushPlatform { return PushPlatform.ETH; }
     get AddressValidator(): AddressValidator { return addressIsEthereum; }
     get TxChecker(): TxChecker { return this.txCheck; }
@@ -82,16 +80,16 @@ export class EthProvider extends Provider implements OnApplicationBootstrap {
         const senderIndexIns = new ChainTxIndex();
         senderIndexIns.txId = eth.txId;
         senderIndexIns.address = eth.sender;
-        senderIndexIns.sender = true;
-        senderIndexIns.flag = this.Flag;
+        senderIndexIns.isSender = true;
+        senderIndexIns.token = this.Token;
         if (await this.createChainTxIndexIfNotExists(senderIndexIns)) {
             result.push(senderRepo);
         }
         const recipientIndexIns = new ChainTxIndex();
         recipientIndexIns.txId = eth.txId;
         recipientIndexIns.address = eth.recipient;
-        recipientIndexIns.sender = false;
-        recipientIndexIns.flag = this.Flag;
+        recipientIndexIns.isSender = false;
+        recipientIndexIns.token = this.Token;
         if (await this.createChainTxIndexIfNotExists(recipientIndexIns)) {
             result.push(recipientRepo);
         }
@@ -119,13 +117,13 @@ export class EthProvider extends Provider implements OnApplicationBootstrap {
                 recipient: src.recipient,
                 amount: src.amount
             } as ChainTxEthData,
-            flag: this.Flag
+            token: this.Token
         };
     }
 
     private async fromChainTx(transaction: ChainTx): Promise<EthDef> {
-        const { txId, txData, flag } = transaction;
-        if (flag !== CoinType.ETHEREUM) {
+        const { txId, txData, token } = transaction;
+        if (token !== Token.ETHEREUM) {
             return null;
         }
         const ethData = txData as ChainTxEthData;

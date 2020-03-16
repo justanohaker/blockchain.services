@@ -1,8 +1,7 @@
 import { Injectable, OnApplicationBootstrap, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CoinType } from '../../../libs/types';
-import { Platform } from '../../../libs/helpers/bipHelper';
+import { Token } from '../../../libs/types';
 import { addressIsBitcoin } from '../../../libs/helpers/addressHelper';
 import { OmniUsdtService } from '../../../blockchain/omni-tokens/omni-usdt/omni-usdt.service';
 import { Transaction } from '../../../blockchain/common/types';
@@ -47,8 +46,7 @@ export class OmniUsdtProvider extends Provider implements OnApplicationBootstrap
     }
 
     // BEGIN: override properties
-    get Flag(): CoinType { return CoinType.OMNI_USDT; }
-    get Platform(): Platform { return Platform.BITCOIN_TESTNET; }
+    get Token(): Token { return Token.OMNI_USDT; }
     get PushPlatform(): PushPlatform { return PushPlatform.OMNI_USDT; }
     get AddressValidator(): AddressValidator { return addressIsBitcoin; }
     get TxChecker(): TxChecker { return this.txCheck; }
@@ -66,7 +64,7 @@ export class OmniUsdtProvider extends Provider implements OnApplicationBootstrap
 
     private async txCheck(transaction: Transaction): Promise<boolean> {
         const btcTr = transaction as OmniUsdtTransactin;
-        return (btcTr.type === 'bitcoin' && btcTr.sub === 'omni-usdt');
+        return (btcTr.type === 'bitcoin' && btcTr.sub === 'omni_usdt');
     }
 
     private async txAdd(transaction: Transaction): Promise<TxAddActionResult> {
@@ -80,16 +78,16 @@ export class OmniUsdtProvider extends Provider implements OnApplicationBootstrap
         const senderIndexIns = new ChainTxIndex();
         senderIndexIns.txId = omni.txId;
         senderIndexIns.address = omni.sending;
-        senderIndexIns.sender = true;
-        senderIndexIns.flag = this.Flag;
+        senderIndexIns.isSender = true;
+        senderIndexIns.token = this.Token;
         if (await this.createChainTxIndexIfNotExists(senderIndexIns)) {
             result.push(senderRepo);
         }
         const recipientIndexIns = new ChainTxIndex();
         recipientIndexIns.txId = omni.txId;
         recipientIndexIns.address = omni.reference;
-        recipientIndexIns.sender = false;
-        recipientIndexIns.flag = this.Flag;
+        recipientIndexIns.isSender = false;
+        recipientIndexIns.token = this.Token;
         if (await this.createChainTxIndexIfNotExists(recipientIndexIns)) {
             result.push(referenceRepo);
         }
@@ -122,13 +120,13 @@ export class OmniUsdtProvider extends Provider implements OnApplicationBootstrap
             reference: src.reference,
             amount: src.amount
         } as ChainTxOmniData;
-        chainTxIns.flag = this.Flag;
+        chainTxIns.token = this.Token;
         return chainTxIns;
     }
 
     private async fromChainTx(transaction: ChainTx): Promise<OmniUsdtDef> {
-        const { txId, txData, flag } = transaction;
-        if (flag !== CoinType.OMNI_USDT) {
+        const { txId, txData, token } = transaction;
+        if (token !== Token.OMNI_USDT) {
             return null;
         }
         const omniData = txData as ChainTxOmniData;

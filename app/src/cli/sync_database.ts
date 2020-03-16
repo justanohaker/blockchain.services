@@ -1,5 +1,12 @@
 import 'reflect-metadata';
-import { createConnection, Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, Connection } from 'typeorm';
+import {
+    createConnection,
+    Entity,
+    PrimaryGeneratedColumn,
+    Column,
+    PrimaryColumn,
+    Connection
+} from 'typeorm';
 
 // new models
 import { Client } from '../models/clients.model';
@@ -7,8 +14,13 @@ import { User } from '../models/users.model';
 import { Account } from '../models/accounts.model';
 import { ChainSecret } from '../models/chain.secret.model';
 import { Webhook } from '../models/user.webhook.model';
-import { ChainTx, ChainTxIndex, ChainTxEthData, ChainTxBtcData } from '../models/transactions.model';
-import { CoinType } from 'src/libs/types';
+import {
+    ChainTx,
+    ChainTxIndex,
+    ChainTxEthData,
+    ChainTxBtcData
+} from '../models/transactions.model';
+import { Token } from '../libs/types';
 
 // old models
 @Entity('client')
@@ -238,7 +250,7 @@ async function updateAccount(conns: Connection[]) {
         accountIns.privkey = btcAccount.privkey;
         accountIns.address = btcAccount.address;
         accountIns.balance = btcAccount.balance;
-        accountIns.flag = CoinType.BITCOIN;
+        accountIns.token = Token.BITCOIN;
         await newAccountRepo.save(accountIns);
     }
     const ethAccounts = await oldAccountEthRepo.find();
@@ -251,7 +263,7 @@ async function updateAccount(conns: Connection[]) {
         accountIns.privkey = ethAccount.privkey;
         accountIns.address = ethAccount.address;
         accountIns.balance = ethAccount.balance;
-        accountIns.flag = CoinType.ETHEREUM;
+        accountIns.token = Token.ETHEREUM;
         await newAccountRepo.save(accountIns);
     }
     // webhook model
@@ -276,14 +288,14 @@ async function updateTransaction(conns: Connection[]) {
 
     const btcTrs = await oldTrBtcRepo.find();
     const btcAccounts = await newAccountRepo.find({
-        flag: CoinType.BITCOIN
+        token: Token.BITCOIN
     });
     const btcAddresses = btcAccounts.map((account: Account) => account.address);
     for (const tr of btcTrs) {
         const tx = new ChainTx();
         tx.txId = tr.txId;
         tx.txData = {} as ChainTxBtcData;
-        tx.flag = CoinType.BITCOIN;
+        tx.token = Token.BITCOIN;
         await newTrRepo.save(tx);
 
         const inAddresses: string[] = [];
@@ -298,8 +310,8 @@ async function updateTransaction(conns: Connection[]) {
                 const txIndex = new ChainTxIndex();
                 txIndex.txId = tr.txId;
                 txIndex.address = addr;
-                txIndex.sender = true;
-                txIndex.flag = CoinType.BITCOIN;
+                txIndex.isSender = true;
+                txIndex.token = Token.BITCOIN;
                 await newTrIndexRepo.save(txIndex);
             }
         }
@@ -315,15 +327,15 @@ async function updateTransaction(conns: Connection[]) {
                 const txIndex = new ChainTxIndex();
                 txIndex.txId = tr.txId;
                 txIndex.address = addr;
-                txIndex.sender = false;
-                txIndex.flag = CoinType.BITCOIN;
+                txIndex.isSender = false;
+                txIndex.token = Token.BITCOIN;
                 await newTrIndexRepo.save(txIndex);
             }
         }
     }
     const ethTrs = await oldTrEthRepo.find();
     const ethAccounts = await newAccountRepo.find({
-        flag: CoinType.ETHEREUM
+        token: Token.ETHEREUM
     });
     const ethAddresses = ethAccounts.map((account: Account) => account.address);
     for (const tr of ethTrs) {
@@ -336,7 +348,7 @@ async function updateTransaction(conns: Connection[]) {
             recipient: tr.recipient,
             amount: tr.amount
         } as ChainTxEthData;
-        tx.flag = CoinType.ETHEREUM;
+        tx.token = Token.ETHEREUM;
         await newTrRepo.save(tx);
 
         // sender index
@@ -344,8 +356,8 @@ async function updateTransaction(conns: Connection[]) {
             const txIndex = new ChainTxIndex();
             txIndex.txId = tr.txId;
             txIndex.address = tr.sender;
-            txIndex.sender = true;
-            txIndex.flag = CoinType.ETHEREUM;
+            txIndex.isSender = true;
+            txIndex.token = Token.ETHEREUM;
             await newTrIndexRepo.save(txIndex);
         }
         // recipient index
@@ -353,8 +365,8 @@ async function updateTransaction(conns: Connection[]) {
             const txIndex = new ChainTxIndex();
             txIndex.txId = tr.txId;
             txIndex.address = tr.recipient;
-            txIndex.sender = false;
-            txIndex.flag = CoinType.ETHEREUM;
+            txIndex.isSender = false;
+            txIndex.token = Token.ETHEREUM;
             await newTrIndexRepo.save(txIndex);
         }
     }

@@ -1,8 +1,7 @@
 import { Injectable, OnApplicationBootstrap, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CoinType } from '../../../libs/types';
-import { Platform } from '../../../libs/helpers/bipHelper';
+import { Token } from '../../../libs/types';
 import { addressIsBitcoin } from '../../../libs/helpers/addressHelper';
 import { BtcService } from '../../../blockchain/btc/btc.service';
 import { Transaction } from '../../../blockchain/common/types';
@@ -48,8 +47,7 @@ export class BtcProvider extends Provider implements OnApplicationBootstrap {
     }
 
     // BEGIN: properties overrides
-    get Flag(): CoinType { return CoinType.BITCOIN; }
-    get Platform(): Platform { return Platform.BITCOIN_TESTNET; }
+    get Token(): Token { return Token.BITCOIN; }
     get PushPlatform(): PushPlatform { return PushPlatform.BTC; }
     get AddressValidator(): AddressValidator { return addressIsBitcoin; }
     get TxChecker(): TxChecker { return this.txCheck; }
@@ -98,8 +96,8 @@ export class BtcProvider extends Provider implements OnApplicationBootstrap {
             const indexIns = new ChainTxIndex();
             indexIns.txId = btc.txId;
             indexIns.address = inRepo.address;
-            indexIns.sender = true;
-            indexIns.flag = this.Flag;
+            indexIns.isSender = true;
+            indexIns.token = this.Token;
             if (await this.createChainTxIndexIfNotExists(indexIns)) {
                 filter.push(inRepo);
             }
@@ -108,8 +106,8 @@ export class BtcProvider extends Provider implements OnApplicationBootstrap {
             const indexIns = new ChainTxIndex();
             indexIns.txId = btc.txId;
             indexIns.address = outRepo.address;
-            indexIns.sender = false;
-            indexIns.flag = this.Flag;
+            indexIns.isSender = false;
+            indexIns.token = this.Token;
             if (await this.createChainTxIndexIfNotExists(indexIns)) {
                 filter.push(outRepo);
             }
@@ -142,13 +140,13 @@ export class BtcProvider extends Provider implements OnApplicationBootstrap {
             vIns: src.vIns,
             vOuts: src.vOuts
         } as ChainTxBtcData;
-        chainTxIns.flag = this.Flag;
+        chainTxIns.token = this.Token;
         return chainTxIns;
     }
 
     private async fromChainTx(transaction: ChainTx): Promise<BtcDef> {
-        const { txId, txData, flag } = transaction;
-        if (flag !== CoinType.BITCOIN) {
+        const { txId, txData, token } = transaction;
+        if (token !== Token.BITCOIN) {
             return null;
         }
         const btcData = txData as ChainTxBtcData;

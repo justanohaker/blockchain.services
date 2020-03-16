@@ -4,13 +4,12 @@ import { IService } from '../../../blockchain/common/service.interface';
 import { Transaction, BalanceDef, AccountKeyPair } from '../../../blockchain/common/types';
 import { IServiceProvider } from '../../../blockchain/common/service.provider';
 import {
-    Platform,
     bipPrivpubFromMnemonic,
     bipGetAddressFromXPub,
     bipHexPrivFromxPriv,
     bipWIFFromxPriv
 } from '../../../libs/helpers/bipHelper';
-import { CoinType } from '../../../libs/types';
+import { Token } from '../../../libs/types';
 import { Client } from '../../../models/clients.model';
 import { User } from '../../../models/users.model';
 import { Webhook } from '../../../models/user.webhook.model';
@@ -31,12 +30,10 @@ import {
 
 export class Provider implements IChainProvider, IServiceProvider {
     // BEGIN: override by subclass
-    // Flag - 用于区分不同的Token
-    protected readonly Flag: CoinType;
+    // Token - 用于区分不同的Token
+    protected readonly Token: Token;
     // IService - 持有不同Token对于IService的实现，用于与链交易
     protected readonly IService: IService;
-    // Platform - 链平台(Bitcoin, Ethereum)
-    protected readonly Platform: Platform;
     // PushPlatform - 推送平台(Token类型)
     protected readonly PushPlatform: PushPlatform;
     // AddressValidator - 地址验证器
@@ -66,8 +63,8 @@ export class Provider implements IChainProvider, IServiceProvider {
 
     // IChainProvider
     async addAccount(userRepo: User, secret: string): Promise<Account> {
-        const privpub = await bipPrivpubFromMnemonic(secret, this.Platform);
-        const address = await bipGetAddressFromXPub(this.Platform, privpub.xpub);
+        const privpub = await bipPrivpubFromMnemonic(secret, this.Token);
+        const address = await bipGetAddressFromXPub(privpub.xpub, this.Token);
         const accountIns = new Account();
         accountIns.clientId = userRepo.clientId;
         accountIns.accountId = userRepo.accountId;
@@ -75,7 +72,7 @@ export class Provider implements IChainProvider, IServiceProvider {
         accountIns.pubkey = privpub.xpub;
         accountIns.address = address;
         accountIns.balance = '0';
-        accountIns.flag = this.Flag;
+        accountIns.token = this.Token;
 
         const resultRepo = await this.AccountRepo.save(accountIns);
         // Maybe use cache??
@@ -86,7 +83,7 @@ export class Provider implements IChainProvider, IServiceProvider {
         const accountRepo = await this.AccountRepo.findOne({
             clientId,
             accountId,
-            flag: this.Flag
+            token: this.Token
         });
         return accountRepo;
     }
@@ -98,7 +95,7 @@ export class Provider implements IChainProvider, IServiceProvider {
         const accountRepo = await this.retrieveAccount(clientId, accountId);
         const repos = await this.ChainTxIndexRepo.find({
             address: accountRepo.address,
-            flag: this.Flag
+            token: this.Token
         });
         const result: string[] = [];
         for (const repo of repos) {
@@ -117,14 +114,14 @@ export class Provider implements IChainProvider, IServiceProvider {
         const checkTxExist = await this.ChainTxIndexRepo.count({
             address: accountRepo.address,
             txId,
-            flag: this.Flag
+            token: this.Token
         });
         if (checkTxExist <= 0) {
             throw new Error('Parameter Error!');
         }
         const repo = await this.ChainTxRepo.findOne({
             txId,
-            flag: this.Flag
+            token: this.Token
         });
         if (!repo) {
             throw new Error('Parameter Error!');
@@ -146,11 +143,11 @@ export class Provider implements IChainProvider, IServiceProvider {
         const keyPair: AccountKeyPair = {
             privateKey: await bipHexPrivFromxPriv(
                 accountRepo.privkey,
-                this.Platform
+                this.Token
             ),
             wif: await bipWIFFromxPriv(
                 accountRepo.privkey,
-                this.Platform
+                this.Token
             ),
             address: accountRepo.address
         };
@@ -214,7 +211,7 @@ export class Provider implements IChainProvider, IServiceProvider {
     async getAddresses(): Promise<string[]> {
         // Maybe need cache??
         const repos = await this.AccountRepo.find({
-            flag: this.Flag
+            token: this.Token
         });
         const addresses: string[] = [];
         for (const repo of repos) {
@@ -302,7 +299,7 @@ export class Provider implements IChainProvider, IServiceProvider {
     protected async updateBalance(address: string, balance: string): Promise<Account> {
         let accountRepo = await this.AccountRepo.findOne({
             address,
-            flag: this.Flag
+            token: this.Token
         });
         if (!accountRepo) { return null; }
         accountRepo.balance = balance;
@@ -314,7 +311,7 @@ export class Provider implements IChainProvider, IServiceProvider {
         // Maybe need cache??
         const accountRepo = await this.AccountRepo.findOne({
             address,
-            flag: this.Flag
+            token: this.Token
         });
         return accountRepo;
     }
@@ -322,7 +319,7 @@ export class Provider implements IChainProvider, IServiceProvider {
     protected async createChainTxIfNotExists(chainTx: ChainTx): Promise<boolean> {
         const found = await this.ChainTxRepo.findOne({
             txId: chainTx.txId,
-            flag: chainTx.flag
+            token: chainTx.token
         });
         if (!found) {
             await this.ChainTxRepo.save(chainTx);
@@ -334,8 +331,8 @@ export class Provider implements IChainProvider, IServiceProvider {
         const found = await this.ChainTxIndexRepo.findOne({
             txId: chainTxIndex.txId,
             address: chainTxIndex.address,
-            sender: chainTxIndex.sender,
-            flag: chainTxIndex.flag
+            isSender: chainTxIndex.isSender,
+            token: chainTxIndex.token
         });
         if (!found) {
             await this.ChainTxIndexRepo.save(chainTxIndex);

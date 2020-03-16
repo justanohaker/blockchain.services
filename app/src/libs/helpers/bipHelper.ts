@@ -3,12 +3,12 @@ import { fromSeed, fromBase58, BIP32Interface } from 'bip32';
 import { networks, payments } from 'bitcoinjs-lib';
 import { importPublic, publicToAddress } from 'ethereumjs-util';
 import { utils } from 'ethers';
+import { Token } from '../types';
 
-export const enum Platform {
-    BITCOIN = "m/44'/0'/0'/0/0",
-    ETHEREUM = "m/44'/60'/0'/0/0",
-    BITCOIN_TESTNET = "m/44'/1'/0'/0/0"
-}
+const cDerivePath_Bitcoin = `m/44'/1'/0'/0/0`;      //`m/44'/0'/0'/0/0`
+const cDerivePath_Ethereum = `m/44'/60'/0'/0/0`;
+const cDerivePath_OmniUsdt = cDerivePath_Bitcoin;
+const cDerivePath_Erc20Usdt = cDerivePath_Ethereum;
 
 export async function bipNewMnemonic(strength: number = 128): Promise<string> {
     return generateMnemonic(strength)
@@ -23,90 +23,102 @@ export async function bipMnemonicToSeed(
 
 export async function bipPrivpubFromSeed(
     seed: Buffer,
-    platform: Platform,
+    token: Token,
 ) {
     let b32: BIP32Interface = null;
-    if (platform === Platform.BITCOIN_TESTNET) {
-        b32 = fromSeed(seed, networks.testnet);
-    } else {
-        b32 = fromSeed(seed, networks.bitcoin);
+    switch (token) {
+        case Token.BITCOIN: {
+            const tmp = fromSeed(seed, networks.testnet);
+            b32 = tmp.derivePath(cDerivePath_Bitcoin);
+            break;
+        }
+        case Token.OMNI_USDT: {
+            const tmp = fromSeed(seed, networks.testnet);
+            b32 = tmp.derivePath(cDerivePath_OmniUsdt);
+            break;
+        }
+        case Token.ETHEREUM: {
+            const tmp = fromSeed(seed, networks.bitcoin);
+            b32 = tmp.derivePath(cDerivePath_Ethereum);
+            break;
+        }
+        case Token.ERC20_USDT: {
+            const tmp = fromSeed(seed, networks.bitcoin);
+            b32 = tmp.derivePath(cDerivePath_Erc20Usdt);
+            break;
+        }
     }
 
-    const deriveB32 = b32.derivePath(platform);
-    const priv = deriveB32.privateKey.toString("hex");
-    const pub = deriveB32.publicKey.toString("hex");
-    const xpriv = deriveB32.toBase58();
-    const xpub = deriveB32.neutered().toBase58();
-    const wif = deriveB32.toWIF();
-
     return {
-        priv,
-        pub,
-        xpriv,
-        xpub,
-        wif
+        priv: b32.privateKey.toString('hex'),
+        pub: b32.publicKey.toString('hex'),
+        xpriv: b32.toBase58(),
+        xpub: b32.neutered().toBase58(),
+        wif: b32.toWIF()
     };
 }
 
 export async function bipPrivpubFromMnemonic(
     mnemonic: string,
-    platform: Platform,
+    token: Token,
     password: string = '',
 ) {
     const seed = await bipMnemonicToSeed(mnemonic, password);
-    return await bipPrivpubFromSeed(seed, platform);
+    return await bipPrivpubFromSeed(seed, token);
 }
 
-export async function bipHexPrivFromxPriv(xpriv: string, platform: Platform) {
-    if (platform === Platform.BITCOIN_TESTNET) {
-        const b32 = fromBase58(xpriv, networks.testnet);
-        return b32.privateKey.toString('hex');
-    } else {
-        const b32 = fromBase58(xpriv, networks.bitcoin);
-        return b32.privateKey.toString('hex');
+async function bipFromBase58(xpriv: string, token: Token) {
+    let b32: BIP32Interface = null;
+    switch (token) {
+        case Token.BITCOIN:
+        case Token.OMNI_USDT: {
+            b32 = fromBase58(xpriv, networks.testnet);
+            break;
+            // TODO: prod == Ethereum
+        }
+        case Token.ETHEREUM:
+        case Token.ERC20_USDT: {
+            b32 = fromBase58(xpriv, networks.bitcoin);
+            break;
+        }
+        // END TODO
+        default:
+            throw new Error(`Unsupported Token(${token})`);
     }
+    return b32;
 }
 
-export async function bipWIFFromxPriv(xpriv: string, platform: Platform) {
-    if (platform === Platform.BITCOIN_TESTNET) {
-        const b32 = fromBase58(xpriv, networks.testnet);
-        return b32.toWIF();
-    } else {
-        const b32 = fromBase58(xpriv, networks.bitcoin);
-        return b32.toWIF();
-    }
+export async function bipHexPrivFromxPriv(xpriv: string, token: Token) {
+    const b32 = await bipFromBase58(xpriv, token);
+    return b32.privateKey.toString('hex');
 }
 
-export async function bipGetAddressFromXPub(platform: Platform, xpub: string) {
-    let pubkey: Buffer = null;
-    if (platform === Platform.BITCOIN_TESTNET) {
-        const b32 = fromBase58(xpub, networks.testnet);
-        pubkey = b32.publicKey;
-    } else {
-        const b32 = fromBase58(xpub, networks.bitcoin);
-        pubkey = b32.publicKey;
-    }
+export async function bipWIFFromxPriv(xpriv: string, token: Token) {
+    const b32 = await bipFromBase58(xpriv, token);
+    return b32.toWIF();
+}
 
-    switch (platform) {
-        case Platform.BITCOIN: {
-            const p2pkh = payments.p2pkh({ pubkey, network: networks.bitcoin });
+export async function bipGetAddressFromXPub(xpub: string, token: Token) {
+    const b32 = await bipFromBase58(xpub, token);
+    const pubkey = b32.publicKey;
+
+    switch (token) {
+        case Token.BITCOIN:
+        case Token.OMNI_USDT: {
+            // TODO: for prod
+            // const p2pkh = payments.p2pkh({ pubkey, network: networks.bitcoin });
+            // return p2pkh.address;
+            // END TODO
+            const p2pkh = payments.p2pkh({ pubkey, network: networks.testnet });
             return p2pkh.address;
         }
-
-        case Platform.ETHEREUM: {
+        case Token.ETHEREUM:
+        case Token.ERC20_USDT: {
             const ethereumPubkey = importPublic(pubkey);
             const addr = publicToAddress(ethereumPubkey);
             return utils.getAddress('0x' + addr.toString('hex'));
         }
-
-        case Platform.BITCOIN_TESTNET: {
-            const p2pkh = payments.p2pkh({ pubkey, network: networks.testnet });
-            return p2pkh.address;
-        }
-
-        default:
-            break;
+        default: break;
     }
-
-    throw new Error();
+    throw new Error(`Unsupported Token(${token})`);
 }

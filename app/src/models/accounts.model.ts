@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
-import { CoinType } from '../libs/types';
+import { Token } from '../libs/types';
 
 @Entity('accounts')
 export class Account {
@@ -25,5 +25,5 @@ export class Account {
     balance: string;
 
     @Column()
-    flag: CoinType
+    token: Token
 }

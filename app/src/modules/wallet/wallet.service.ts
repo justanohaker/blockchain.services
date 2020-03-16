@@ -4,10 +4,10 @@ import { Repository } from 'typeorm';
 import { Client } from '../../models/clients.model';
 import { ChainSecret } from '../../models/chain.secret.model';
 import { User } from '../../models/users.model';
-import { Account } from 'src/models/accounts.model';
+import { Account } from '../../models/accounts.model';
 import { bipNewMnemonic } from '../../libs/helpers/bipHelper';
 import { RespErrorCode } from '../../libs/responseHelper';
-import { CoinType } from '../../libs/types';
+import { Token } from '../../libs/types';
 import { IChainProvider } from './providers/provider.interface';
 import { NullProvider } from './providers/null.provider';
 import { BtcProvider } from './providers/btc.provider';
@@ -115,11 +115,11 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
     async getAddress(
         clientId: string,
         accountId: string,
-        coin: CoinType
+        token: Token
     ): Promise<AddressRespDto> {
         const result: AddressRespDto = { success: true };
         try {
-            const provider = this.getProvider(coin);
+            const provider = this.getProvider(token);
             const account = await provider.retrieveAccount(clientId, accountId);
             if (!account) {
                 throw new Error('Parameter Error!');
@@ -137,11 +137,11 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
     async getBalance(
         clientId: string,
         accountId: string,
-        coin: CoinType
+        token: Token
     ): Promise<BalanceRespDto> {
         const result: BalanceRespDto = { success: true };
         try {
-            const provider = this.getProvider(coin);
+            const provider = this.getProvider(token);
             const account = await provider.retrieveAccount(clientId, accountId);
             if (!account) {
                 throw new Error('Parameter Error!');
@@ -158,11 +158,11 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
     async getTransactions(
         clientId: string,
         accountId: string,
-        coin: CoinType
+        token: Token
     ): Promise<TransactionsRespDto> {
         const result: TransactionsRespDto = { success: true };
         try {
-            const provider = this.getProvider(coin);
+            const provider = this.getProvider(token);
             result.txids = await provider.getTransactions(clientId, accountId);
         } catch (error) {
             result.success = false;
@@ -176,12 +176,12 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
     async getTransaction(
         clientId: string,
         accountId: string,
-        coin: CoinType,
+        token: Token,
         txId: string
     ): Promise<TransactionRespDto> {
         const result: TransactionRespDto = { success: true };
         try {
-            const provider = this.getProvider(coin);
+            const provider = this.getProvider(token);
             result.data = await provider.getTransaction(clientId, accountId, txId);
         } catch (error) {
             result.success = false;
@@ -195,12 +195,12 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
     async despositTo(
         clientId: string,
         accountId: string,
-        coin: CoinType,
+        token: Token,
         despositDto: DespositDto
     ): Promise<DespositRespDto> {
         const result: DespositRespDto = { success: true };
         try {
-            const provider = this.getProvider(coin);
+            const provider = this.getProvider(token);
             result.txid = await provider.transfer(clientId, accountId, despositDto);
         } catch (error) {
             result.success = false;
@@ -212,15 +212,15 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
     }
 
     // privates
-    getProvider(coin: CoinType): IChainProvider {
-        switch (coin) {
-            case CoinType.BITCOIN:
+    getProvider(token: Token): IChainProvider {
+        switch (token) {
+            case Token.BITCOIN:
                 return this.btcProvider;
-            case CoinType.ETHEREUM:
+            case Token.ETHEREUM:
                 return this.ethProvider;
-            case CoinType.OMNI_USDT:
+            case Token.OMNI_USDT:
                 return this.omniUsdtProvider;
-            case CoinType.ERC20_USDT:
+            case Token.ERC20_USDT:
                 return this.erc20UsdtProvider;
             default:
                 return this.nullProvider;
@@ -264,25 +264,25 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
             secretRepo.chainSecret
         );
         this.btcProvider.onNewAccount([btcAccount.address]);
-        result[CoinType.BITCOIN] = btcAccount.address;
+        result[Token.BITCOIN] = btcAccount.address;
         const ethAccount = await this.ethProvider.addAccount(
             userRepo,
             secretRepo.chainSecret
         );
         this.ethProvider.onNewAccount([ethAccount.address]);
-        result[CoinType.ETHEREUM] = ethAccount.address;
+        result[Token.ETHEREUM] = ethAccount.address;
         const omniUsdtAccount = await this.omniUsdtProvider.addAccount(
             userRepo,
             secretRepo.chainSecret
         );
         this.omniUsdtProvider.onNewAccount([omniUsdtAccount.address]);
-        result[CoinType.OMNI_USDT] = omniUsdtAccount.address;
+        result[Token.OMNI_USDT] = omniUsdtAccount.address;
         const erc20UsdtAccount = await this.erc20UsdtProvider.addAccount(
             userRepo,
             secretRepo.chainSecret
         );
         this.erc20UsdtProvider.onNewAccount([erc20UsdtAccount.address]);
-        result[CoinType.ERC20_USDT] = erc20UsdtAccount.address;
+        result[Token.ERC20_USDT] = erc20UsdtAccount.address;
 
         return result;
     }
@@ -291,16 +291,16 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
         const result: TokenAccount[] = [];
         const btcAccount = await this.btcProvider.retrieveAccount(clientId, accountId);
         btcAccount
-            && result.push({ token: CoinType.BITCOIN, account: btcAccount });
+            && result.push({ token: Token.BITCOIN, account: btcAccount });
         const ethAccount = await this.ethProvider.retrieveAccount(clientId, accountId);
         ethAccount
-            && result.push({ token: CoinType.ETHEREUM, account: ethAccount });
+            && result.push({ token: Token.ETHEREUM, account: ethAccount });
         const omniUsdtAccount = await this.omniUsdtProvider.retrieveAccount(clientId, accountId);
         omniUsdtAccount
-            && result.push({ token: CoinType.OMNI_USDT, account: omniUsdtAccount });
+            && result.push({ token: Token.OMNI_USDT, account: omniUsdtAccount });
         const erc20UsdtAccount = await this.erc20UsdtProvider.retrieveAccount(clientId, accountId);
         erc20UsdtAccount
-            && result.push({ token: CoinType.ERC20_USDT, account: erc20UsdtAccount });
+            && result.push({ token: Token.ERC20_USDT, account: erc20UsdtAccount });
         return result;
     }
 

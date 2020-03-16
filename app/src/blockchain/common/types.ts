@@ -85,7 +85,7 @@ export type EthereumTransaction = {
 // For ERC20 Tokens
 export type Erc20UsdtTransaction = {
     type: 'ethereum';               // 以太坊主网 - 标记
-    sub: 'erc20-usdt';              // erc20 usdt token - 标记
+    sub: 'erc20_usdt';              // erc20 usdt token - 标记
     txId: string;                   // 交易Id
     blockHeight: number;            // 交易打包高度
     fee: string;
@@ -97,7 +97,7 @@ export type Erc20UsdtTransaction = {
 // For OmniLayer Tokens
 export type OmniUsdtTransactin = {
     type: 'bitcoin';                // 比特币主网 - 标记
-    sub: 'omni-usdt';               // omniLayer usdt token - 标记
+    sub: 'omni_usdt';               // omniLayer usdt token - 标记
     txId: string;                   // 交易Id
     blockHeight: number;            // 交易打包高度
     blockTime: number;              // 交易打包时间 

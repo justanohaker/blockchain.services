@@ -1,5 +1,5 @@
 import { Entity, Column, PrimaryColumn, PrimaryGeneratedColumn } from 'typeorm';
-import { CoinType } from '../libs/types';
+import { Token } from '../libs/types';
 
 export type ChainTxBtcVIn = {
     address: string;
@@ -58,7 +58,7 @@ export class ChainTx {
     txData: TxData;
 
     @Column()
-    flag: CoinType;
+    token: Token;
 }
 
 @Entity('chaintrindexes')
@@ -73,8 +73,8 @@ export class ChainTxIndex {
     address: string;
 
     @Column()
-    sender: boolean;
+    isSender: boolean;
 
     @Column()
-    flag: CoinType;
+    token: Token;
 }

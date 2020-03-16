@@ -76,7 +76,7 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
                             let amount = transfer["inputs"][1].toString()
                             let transaction: Erc20UsdtTransaction = {
                                 type: "ethereum",                   // 以太坊主网 - 标记
-                                sub: "erc20-usdt",                  // 以太坊代币ETH - 标记
+                                sub: "erc20_usdt",                  // 以太坊代币ETH - 标记
                                 txId: tx.hash,                      // 交易Id
                                 blockHeight: tx.blockNumber,        // 交易打包高度
                                 fee: 'Unimplemented!',              // TODO: 交易费

@@ -66,7 +66,7 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
                 if (this.addresses.includes(tx.sendingaddress) || this.addresses.includes(tx.referenceaddress)) {
                     let omniTx: OmniUsdtTransactin = {
                         type: 'bitcoin',
-                        sub: 'omni-usdt',
+                        sub: 'omni_usdt',
                         txId: txid,
                         blockHeight: lastBlockHeght,
                         blockTime: tx.blocktime,

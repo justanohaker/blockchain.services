@@ -1,4 +1,4 @@
-export const enum CoinType {
+export const enum Token {
     BITCOIN = 'btc',
     ETHEREUM = 'eth',
     OMNI_USDT = 'omni_usdt',
