@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Client } from '../../models/clients.model';
 import { ChainSecret } from '../../models/chain.secret.model';
 import { User } from '../../models/users.model';
+import { Account } from 'src/models/accounts.model';
 import { bipNewMnemonic } from '../../libs/helpers/bipHelper';
 import { RespErrorCode } from '../../libs/responseHelper';
 import { CoinType } from '../../libs/types';
@@ -22,23 +23,35 @@ import {
     BalanceRespDto,
     TransactionsRespDto,
     TransactionRespDto,
-    DespositRespDto
+    DespositRespDto,
+    TokenInfo,
+    TokenAccount
 } from './wallet.dto';
 
 const TEST_MNEMONIC = 'cave syrup rather injury exercise unit army burden matrix horn celery gas border churn wheat';
 
 @Injectable()
-export class WalletService {
+export class WalletService implements OnModuleInit, OnModuleDestroy {
     constructor(
         @InjectRepository(Client) private readonly clientRepo: Repository<Client>,
         @InjectRepository(ChainSecret) private readonly secretRepo: Repository<ChainSecret>,
         @InjectRepository(User) private readonly userRepo: Repository<User>,
+        @InjectRepository(Account) private readonly accountRepo: Repository<Account>,
         private readonly btcProvider: BtcProvider,
         private readonly ethProvider: EthProvider,
         private readonly omniUsdtProvider: OmniUsdtProvider,
         private readonly erc20UsdtProvider: Erc20UsdtProvider,
         private readonly nullProvider: NullProvider
     ) { }
+
+    async onModuleInit() {
+        await this.initGenerics();
+        await this.checkAccountsIntegrity();
+    }
+
+    async onModuleDestroy() {
+        // TODO
+    }
 
     async addAccount(clientId: string, accountId: string): Promise<AddAccountRespDto> {
         const result: AddAccountRespDto = { success: true };
@@ -54,8 +67,8 @@ export class WalletService {
         userIns.accountId = accountId;
         const userRepo = await this.userRepo.save(userIns);
         const secretRepo = await this.addSecretToAccount(userRepo);
-        await this.initAccounts(userRepo, secretRepo);
-
+        const addresses = await this.initAccounts(userRepo, secretRepo);
+        result.addresses = addresses;
         return result;
     }
 
@@ -87,6 +100,16 @@ export class WalletService {
         }
 
         result.accountId = accountId;
+
+        const allTokenAccounts = await this.allTokenAccounts(clientId, accountId);
+        console.log('allTokenAccounts:', JSON.stringify(allTokenAccounts, null, 2));
+        result.tokens = [];
+        for (const tokenAccount of allTokenAccounts) {
+            result.tokens.push({
+                [tokenAccount.token]: tokenAccount.account.address,
+                balance: tokenAccount.account.balance
+            });
+        }
         return result;
     }
 
@@ -99,6 +122,9 @@ export class WalletService {
         try {
             const provider = this.getProvider(coin);
             const account = await provider.retrieveAccount(clientId, accountId);
+            if (!account) {
+                throw new Error('Parameter Error!');
+            }
             result.address = account.address;
         } catch (error) {
             result.success = false;
@@ -118,6 +144,9 @@ export class WalletService {
         try {
             const provider = this.getProvider(coin);
             const account = await provider.retrieveAccount(clientId, accountId);
+            if (!account) {
+                throw new Error('Parameter Error!');
+            }
             result.balance = account.balance;
         } catch (error) {
             result.success = false;
@@ -229,26 +258,110 @@ export class WalletService {
         return chainsecretRepo;
     }
 
-    async initAccounts(userRepo: User, secretRepo: ChainSecret): Promise<void> {
+    async initAccounts(userRepo: User, secretRepo: ChainSecret): Promise<TokenInfo> {
+        const result: TokenInfo = {};
         const btcAccount = await this.btcProvider.addAccount(
             userRepo,
             secretRepo.chainSecret
         );
         this.btcProvider.onNewAccount([btcAccount.address]);
+        result[CoinType.BITCOIN] = btcAccount.address;
         const ethAccount = await this.ethProvider.addAccount(
             userRepo,
             secretRepo.chainSecret
         );
         this.ethProvider.onNewAccount([ethAccount.address]);
+        result[CoinType.ETHEREUM] = ethAccount.address;
         const omniUsdtAccount = await this.omniUsdtProvider.addAccount(
             userRepo,
             secretRepo.chainSecret
         );
         this.omniUsdtProvider.onNewAccount([omniUsdtAccount.address]);
+        result[CoinType.OMNI_USDT] = omniUsdtAccount.address;
         const erc20UsdtAccount = await this.erc20UsdtProvider.addAccount(
             userRepo,
             secretRepo.chainSecret
         );
         this.erc20UsdtProvider.onNewAccount([erc20UsdtAccount.address]);
+        result[CoinType.ERC20_USDT] = erc20UsdtAccount.address;
+
+        return result;
+    }
+
+    private async allTokenAccounts(clientId: string, accountId: string): Promise<TokenAccount[]> {
+        const result: TokenAccount[] = [];
+        const btcAccount = await this.btcProvider.retrieveAccount(clientId, accountId);
+        btcAccount
+            && result.push({ token: CoinType.BITCOIN, account: btcAccount });
+        const ethAccount = await this.ethProvider.retrieveAccount(clientId, accountId);
+        ethAccount
+            && result.push({ token: CoinType.ETHEREUM, account: ethAccount });
+        const omniUsdtAccount = await this.omniUsdtProvider.retrieveAccount(clientId, accountId);
+        omniUsdtAccount
+            && result.push({ token: CoinType.OMNI_USDT, account: omniUsdtAccount });
+        const erc20UsdtAccount = await this.erc20UsdtProvider.retrieveAccount(clientId, accountId);
+        erc20UsdtAccount
+            && result.push({ token: CoinType.ERC20_USDT, account: erc20UsdtAccount });
+        return result;
+    }
+
+    private async checkAccountsIntegrity() {
+        const clients = await this.clientRepo.find();
+        if (!clients || clients.length <= 0) {
+            return;
+        }
+
+        for (const client of clients) {
+            const users = await this.userRepo.find({
+                clientId: client.id
+            });
+            if (!users || users.length <= 0) {
+                continue;
+            }
+            for (const user of users) {
+                const secretRepo = await this.secretRepo.findOne({
+                    clientId: client.id,
+                    accountId: user.accountId
+                });
+
+                await this.checkOrCreateIfNeed(user, secretRepo);
+            }
+        }
+    }
+
+    private async checkOrCreateIfNeed(user: User, secret: ChainSecret) {
+        // Bitcoin
+        const btcAccount = await this.btcProvider.retrieveAccount(
+            user.clientId,
+            user.accountId
+        );
+        !btcAccount
+            && await this.btcProvider.addAccount(user, secret.chainSecret);
+
+        // Ethereum
+        const ethAccount = await this.ethProvider.retrieveAccount(
+            user.clientId,
+            user.accountId
+        );
+        !ethAccount
+            && await this.ethProvider.addAccount(user, secret.chainSecret);
+        // Omni-USDT
+        const omniUsdtAccount = await this.omniUsdtProvider.retrieveAccount(
+            user.clientId,
+            user.accountId
+        );
+        !omniUsdtAccount
+            && await this.omniUsdtProvider.addAccount(user, secret.chainSecret);
+        // ERC20-USDT
+        const erc20UsdtAccount = await this.erc20UsdtProvider.retrieveAccount(
+            user.clientId,
+            user.accountId
+        );
+        !erc20UsdtAccount
+            && await this.erc20UsdtProvider.addAccount(user, secret.chainSecret);
+    }
+
+    private async initGenerics() {
+
     }
 }

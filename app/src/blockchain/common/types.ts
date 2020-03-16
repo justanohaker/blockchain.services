@@ -56,6 +56,7 @@ export type BitcoinTransaction = {
     txId: string;                   // 交易Id
     blockHeight: number;            // 交易打包高度
     blockTime: number;              // 交易打包时间
+    fee: string;
     vIns: BTCvIn[];                 // 交易发送者列表
     vOuts: BTCvOut[]                // 交易接收者列表
 }
@@ -75,6 +76,7 @@ export type EthereumTransaction = {
     txId: string;                   // 交易Id
     blockHeight: number;            // 交易打包高度
     nonce: number;                  // 交易次数
+    fee: string;
     sender: string;                 // 交易发送者地址
     recipient: string;              // 交易接收者地址
     amount: string;                 // 转账金额
@@ -86,6 +88,7 @@ export type Erc20UsdtTransaction = {
     sub: 'erc20-usdt';              // erc20 usdt token - 标记
     txId: string;                   // 交易Id
     blockHeight: number;            // 交易打包高度
+    fee: string;
     sender: string;                 // 交易发送者地址
     recipient: string;              // 交易接收者地址
     amount: string;                 // 转账金额
@@ -101,10 +104,10 @@ export type OmniUsdtTransactin = {
     propertyId: number;             // omni token id
     version: number,                // omni transaction version
     typeInt: number;                // omni transaction type(number format)
+    fee: string;                    // 交易手续费
     sending: string;                // 交易发送方
     reference: string;              // 交易接收方
     amount: string;                 // 交易金额
-    fee: string;                    // 交易手续费
 }
 
 // 交易结构定义

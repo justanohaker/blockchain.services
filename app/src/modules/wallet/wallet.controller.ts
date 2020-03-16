@@ -31,7 +31,10 @@ export class WalletController {
                 newAccountDto.accountId
             );
             if (result.success) {
-                return respSuccess({});
+                return respSuccess({
+                    accountId: result.accountId!,
+                    addresses: result.addresses!
+                });
             }
 
             return respFailure(
@@ -89,7 +92,10 @@ export class WalletController {
                 idParam.id
             );
             if (result.success) {
-                return respSuccess({ accountId: result.accountId! });
+                return respSuccess({
+                    accountId: result.accountId!,
+                    tokens: result.tokens!
+                });
             }
             return respFailure(
                 result.errorCode!,

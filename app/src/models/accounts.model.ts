@@ -3,7 +3,7 @@ import { CoinType } from '../libs/types';
 
 @Entity('accounts')
 export class Account {
-    @PrimaryGeneratedColumn('uuid')
+    @PrimaryGeneratedColumn('rowid')
     id: string;
 
     @Column()
