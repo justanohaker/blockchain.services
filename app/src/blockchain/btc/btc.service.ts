@@ -227,7 +227,6 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
         }
     }
 
-    // 手续费计算
     private async getFeeRate(fee: FeePriority) {
         let feeRate = 40;
         let feedata = await Axios.get('https://bitcoinfees.earn.com/api/v1/fees/recommended');
