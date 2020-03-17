@@ -8,6 +8,7 @@ import { Account } from '../../models/accounts.model';
 import { bipNewMnemonic } from '../../libs/helpers/bipHelper';
 import { RespErrorCode } from '../../libs/responseHelper';
 import { Token } from '../../libs/types';
+import { AppConfig } from '../../config/app.config';
 import { IChainProvider } from './providers/provider.interface';
 import { NullProvider } from './providers/null.provider';
 import { BtcProvider } from './providers/btc.provider';
@@ -245,8 +246,12 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
     }
 
     async addSecretToAccount(user: User): Promise<ChainSecret> {
-        // const newSecret = await bipNewMnemonic();
-        const newSecret = TEST_MNEMONIC;
+        let newSecret: string = null;
+        if (AppConfig.prod) {
+            newSecret = await bipNewMnemonic();
+        } else {
+            newSecret = TEST_MNEMONIC;
+        }
         const chainsecretIns = new ChainSecret();
         chainsecretIns.clientId = user.clientId;
         chainsecretIns.accountId = user.accountId;

@@ -4,4 +4,5 @@ export const AppConfig = {
     Jwt_Expired_In: '7d',
     Nanoid_UserId_Size: 15,
     Sjcl_Password: 'E!@#$%^NTANMO_blockchain.service)(*&^%',
+    prod: true,
 }
