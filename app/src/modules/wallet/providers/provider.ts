@@ -172,6 +172,11 @@ export class Provider implements IChainProvider, IServiceProvider {
                     }
                 })
             }
+            this.Logger?.log(`transfer(failure): ${
+                transferResult == null
+                    ? 'Unimplemented!'
+                    : JSON.stringify(transferResult.error!)
+                }`)
             throw new Error(
                 transferResult == null
                     ? 'Unimplemented!'
@@ -193,6 +198,7 @@ export class Provider implements IChainProvider, IServiceProvider {
             });
         }
         // END
+        this.Logger?.log(`transer(success): ${transferResult.txId}`);
         return transferResult.txId!;
     }
 
