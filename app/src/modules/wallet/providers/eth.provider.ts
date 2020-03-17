@@ -92,7 +92,7 @@ export class EthProvider extends Provider implements OnApplicationBootstrap {
         recipientIndexIns.isSender = false;
         recipientIndexIns.token = this.Token;
         if (await this.createChainTxIndexIfNotExists(recipientIndexIns)
-            && senderRepo) {
+            && recipientRepo) {
             result.push(recipientRepo);
         }
 

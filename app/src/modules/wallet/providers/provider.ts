@@ -274,11 +274,26 @@ export class Provider implements IChainProvider, IServiceProvider {
             // BEGIN: push new transaction confirmed
             const addresses: string[] = [];
             const { accounts, data, ins, outs } = repo;
-            // this.Logger?.log(`notificationData: ${JSON.stringify(repo.data, null, 2)}`);
             for (const account of accounts) {
                 if (!addresses.includes(account.address)) {
                     addresses.push(account.address);
                 }
+                // if (ins.includes(account.address)) {
+                //     this.Logger?.log(`notificationData: ${JSON.stringify({
+                //         accountId: account.accountId,
+                //         address: account.address,
+                //         direction: TransactionDirection.In,
+                //         transaction: repo.data
+                //     }, null, 2)}`);
+                // }
+                // if (outs.includes(account.address)) {
+                //     this.Logger?.log(`notificationData: ${JSON.stringify({
+                //         accountId: account.accountId,
+                //         address: account.address,
+                //         direction: TransactionDirection.Out,
+                //         transaction: repo.data
+                //     }, null, 2)}`);
+                // }
                 const webhooks = await this.getWebHooks(
                     account.clientId,
                     account.accountId
