@@ -81,7 +81,8 @@ export class Erc20UsdtProvider extends Provider implements OnApplicationBootstra
         senderIndexIns.address = erc20Usdt.sender;
         senderIndexIns.isSender = true;
         senderIndexIns.token = this.Token;
-        if (await this.createChainTxIndexIfNotExists(senderIndexIns)) {
+        if (await this.createChainTxIndexIfNotExists(senderIndexIns)
+            && senderRepo) {
             result.push(senderRepo);
         }
         const recipientIndexIns = new ChainTxIndex();
@@ -89,7 +90,8 @@ export class Erc20UsdtProvider extends Provider implements OnApplicationBootstra
         recipientIndexIns.address = erc20Usdt.recipient;
         recipientIndexIns.isSender = false;
         recipientIndexIns.token = this.Token;
-        if (await this.createChainTxIndexIfNotExists(recipientIndexIns)) {
+        if (await this.createChainTxIndexIfNotExists(recipientIndexIns)
+            && recipientRepo) {
             result.push(recipientRepo);
         }
 

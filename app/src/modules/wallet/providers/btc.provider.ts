@@ -73,43 +73,43 @@ export class BtcProvider extends Provider implements OnApplicationBootstrap {
 
         const ins: string[] = [];
         const outs: string[] = [];
-        const inRepos: Account[] = [];
-        const outRepos: Account[] = [];
         for (const vin of btc.vIns) {
-            if (ins.includes(vin.address)) { continue; }
-            ins.push(vin.address);
-            const accountRepo = await this.findAccountByAddress(vin.address);
-            if (accountRepo) { inRepos.push(accountRepo); }
+            if (!ins.includes(vin.address)) {
+                ins.push(vin.address);
+            }
         }
         for (const vout of btc.vOuts) {
-            if (outs.includes(vout.address)) { continue; }
-            ins.push(vout.address);
-            const accountRepo = await this.findAccountByAddress(vout.address);
-            if (accountRepo) { outRepos.push(accountRepo); }
+            if (!outs.includes(vout.address)) {
+                outs.push(vout.address);
+            }
         }
-        if (inRepos.length <= 0 && outRepos.length <= 0) { return null; }
+        if (ins.length <= 0 && outs.length <= 0) { return null; }
 
         const filter: Account[] = [];
         const chainTxIns = await this.ToChainTxAction(btc);
         await this.createChainTxIfNotExists(chainTxIns);
-        for (const inRepo of inRepos) {
+        for (const addr of ins) {
+            const accountRepo = await this.findAccountByAddress(addr);
             const indexIns = new ChainTxIndex();
             indexIns.txId = btc.txId;
-            indexIns.address = inRepo.address;
+            indexIns.address = addr;
             indexIns.isSender = true;
             indexIns.token = this.Token;
-            if (await this.createChainTxIndexIfNotExists(indexIns)) {
-                filter.push(inRepo);
+            if (await this.createChainTxIndexIfNotExists(indexIns)
+                && accountRepo) {
+                filter.push(accountRepo);
             }
         }
-        for (const outRepo of outRepos) {
+        for (const addr of outs) {
+            const accountRepo = await this.findAccountByAddress(addr);
             const indexIns = new ChainTxIndex();
             indexIns.txId = btc.txId;
-            indexIns.address = outRepo.address;
+            indexIns.address = addr;
             indexIns.isSender = false;
             indexIns.token = this.Token;
-            if (await this.createChainTxIndexIfNotExists(indexIns)) {
-                filter.push(outRepo);
+            if (await this.createChainTxIndexIfNotExists(indexIns)
+                && accountRepo) {
+                filter.push(accountRepo);
             }
         }
         const exists: string[] = [];

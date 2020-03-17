@@ -274,6 +274,7 @@ export class Provider implements IChainProvider, IServiceProvider {
             // BEGIN: push new transaction confirmed
             const addresses: string[] = [];
             const { accounts, data, ins, outs } = repo;
+            // this.Logger?.log(`notificationData: ${JSON.stringify(repo.data, null, 2)}`);
             for (const account of accounts) {
                 if (!addresses.includes(account.address)) {
                     addresses.push(account.address);
@@ -283,18 +284,31 @@ export class Provider implements IChainProvider, IServiceProvider {
                     account.accountId
                 );
                 for (const webhook of webhooks) {
-                    this.PushService?.addPush(webhook.postUrl, {
-                        type: PushEventType.TransactionConfirmed,
-                        platform: this.PushPlatform,
-                        data: {
-                            accountId: account.accountId,
-                            address: account.address,
-                            direction: ins.includes(account.address)
-                                ? TransactionDirection.In
-                                : TransactionDirection.Out,
-                            transaction: data
-                        }
-                    });
+                    if (ins.includes(account.address)) {
+                        this.PushService?.addPush(webhook.postUrl, {
+                            type: PushEventType.TransactionConfirmed,
+                            platform: this.PushPlatform,
+                            data: {
+                                accountId: account.accountId,
+                                address: account.address,
+                                direction: TransactionDirection.In,
+                                transaction: data
+                            }
+                        });
+                    }
+
+                    if (outs.includes(account.address)) {
+                        this.PushService?.addPush(webhook.postUrl, {
+                            type: PushEventType.TransactionConfirmed,
+                            platform: this.PushPlatform,
+                            data: {
+                                accountId: account.accountId,
+                                address: account.address,
+                                direction: TransactionDirection.Out,
+                                transaction: data
+                            }
+                        });
+                    }
                 }
             }
             // END
@@ -346,7 +360,7 @@ export class Provider implements IChainProvider, IServiceProvider {
         if (!found) {
             await this.ChainTxRepo.save(chainTx);
         }
-        return !!found;
+        return !found;
     }
 
     protected async createChainTxIndexIfNotExists(chainTxIndex: ChainTxIndex): Promise<boolean> {
@@ -359,6 +373,6 @@ export class Provider implements IChainProvider, IServiceProvider {
         if (!found) {
             await this.ChainTxIndexRepo.save(chainTxIndex);
         }
-        return !!found;
+        return !found;
     }
 }

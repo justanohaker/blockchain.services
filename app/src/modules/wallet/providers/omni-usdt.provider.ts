@@ -80,7 +80,8 @@ export class OmniUsdtProvider extends Provider implements OnApplicationBootstrap
         senderIndexIns.address = omni.sending;
         senderIndexIns.isSender = true;
         senderIndexIns.token = this.Token;
-        if (await this.createChainTxIndexIfNotExists(senderIndexIns)) {
+        if (await this.createChainTxIndexIfNotExists(senderIndexIns)
+            && senderRepo) {
             result.push(senderRepo);
         }
         const recipientIndexIns = new ChainTxIndex();
@@ -88,7 +89,8 @@ export class OmniUsdtProvider extends Provider implements OnApplicationBootstrap
         recipientIndexIns.address = omni.reference;
         recipientIndexIns.isSender = false;
         recipientIndexIns.token = this.Token;
-        if (await this.createChainTxIndexIfNotExists(recipientIndexIns)) {
+        if (await this.createChainTxIndexIfNotExists(recipientIndexIns)
+            && referenceRepo) {
             result.push(referenceRepo);
         }
         return {
