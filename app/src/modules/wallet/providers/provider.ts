@@ -170,18 +170,23 @@ export class Provider implements IChainProvider, IServiceProvider {
                             status: false,
                             accountId: accountId,
                             address: keyPair.address,
+                            error: `${
+                                transferResult == null
+                                    ? 'Bad Request!'
+                                    : transferResult.error!
+                                }`
                         }
                     })
                 }
                 this.Logger?.log(`transfer(failure): ${
                     transferResult == null
                         ? 'Unimplemented!'
-                        : JSON.stringify(transferResult.error!)
+                        : transferResult.error!
                     }`)
                 throw new Error(
                     transferResult == null
                         ? 'Unimplemented!'
-                        : JSON.stringify(transferResult.error!)
+                        : `${transferResult.error!}`
                 );
             }
             // BEGIN: push new transaction created??
@@ -212,6 +217,7 @@ export class Provider implements IChainProvider, IServiceProvider {
                         status: false,
                         accountId: accountId,
                         address: keyPair.address,
+                        error: `${error}`,
                     }
                 })
             }

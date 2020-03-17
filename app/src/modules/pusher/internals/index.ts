@@ -50,14 +50,13 @@ class Pusher {
 
         this.retry({ times: PUSH_TIMES, internals: PUSH_INTERVALS }, call)
             .then((success: boolean) => {
-                if (!success) {
-                    console.log(`[Pusher.Internal] PushFailure ${pushData.url}`);
-                }
-                this._pushTimer = setTimeout(this._pushDispatcher, WORK);
+                console.log(`[Pusher.Internal] Push${success ? 'Success' : 'Failure'} ${pushData.url}`);
             })
             .catch(error => {
                 // TODO: error handle
                 console.log(`[Pusher.Internal] PushError ${error}`);
+            })
+            .finally(() => {
                 this._pushTimer = setTimeout(this._pushDispatcher, WORK);
             });
     }
