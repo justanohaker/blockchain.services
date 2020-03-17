@@ -45,7 +45,6 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
     ) { }
 
     async onModuleInit() {
-        await this.initGenerics();
         await this.checkAccountsIntegrity();
     }
 
@@ -358,9 +357,5 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
         );
         !erc20UsdtAccount
             && await this.erc20UsdtProvider.addAccount(user, secret.chainSecret);
-    }
-
-    private async initGenerics() {
-
     }
 }

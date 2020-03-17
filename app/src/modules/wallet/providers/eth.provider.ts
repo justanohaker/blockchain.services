@@ -99,10 +99,13 @@ export class EthProvider extends Provider implements OnApplicationBootstrap {
                 txId: eth.txId,
                 blockHeight: eth.blockHeight,
                 nonce: eth.nonce,
+                fee: eth.fee,
                 sender: eth.sender,
                 recipient: eth.recipient,
                 amount: eth.amount
             } as EthDef,
+            ins: [eth.sender],
+            outs: [eth.recipient],
             accounts: result
         };
     }
@@ -113,6 +116,7 @@ export class EthProvider extends Provider implements OnApplicationBootstrap {
             txData: {
                 blockHeight: src.blockHeight,
                 nonce: src.nonce,
+                fee: src.fee,
                 sender: src.sender,
                 recipient: src.recipient,
                 amount: src.amount
@@ -131,6 +135,7 @@ export class EthProvider extends Provider implements OnApplicationBootstrap {
             txId: txId,
             blockHeight: ethData.blockHeight,
             nonce: ethData.nonce,
+            fee: ethData.fee,
             sender: ethData.sender,
             recipient: ethData.recipient,
             amount: ethData.amount

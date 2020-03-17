@@ -99,10 +99,13 @@ export class OmniUsdtProvider extends Provider implements OnApplicationBootstrap
                 propertyId: omni.propertyId,
                 version: omni.version,
                 typeInt: omni.typeInt,
+                fee: omni.fee,
                 sending: omni.sending,
                 reference: omni.reference,
                 amount: omni.amount
             } as OmniUsdtDef,
+            ins: [omni.sending],
+            outs: [omni.reference],
             accounts: result
         };
     }
@@ -116,6 +119,7 @@ export class OmniUsdtProvider extends Provider implements OnApplicationBootstrap
             propertyId: src.propertyId,
             version: src.version,
             typeInt: src.typeInt,
+            fee: src.fee,
             sending: src.sending,
             reference: src.reference,
             amount: src.amount
@@ -137,6 +141,7 @@ export class OmniUsdtProvider extends Provider implements OnApplicationBootstrap
             propertyId: omniData.propertyId,
             version: omniData.version,
             typeInt: omniData.typeInt,
+            fee: omniData.fee,
             sending: omniData.sending,
             reference: omniData.reference,
             amount: omniData.amount

@@ -14,6 +14,7 @@ export type ChainTxBtcVOut = {
 export type ChainTxBtcData = {
     blockHeight: number;
     blockTime: number;
+    fee: string;
     vIns: ChainTxBtcVIn[],
     vOuts: ChainTxBtcVOut[]
 }
@@ -21,6 +22,7 @@ export type ChainTxBtcData = {
 export type ChainTxEthData = {
     blockHeight: number;
     nonce: number;
+    fee: string;
     sender: string;
     recipient: string;
     amount: string;
@@ -32,6 +34,7 @@ export type ChainTxOmniData = {
     propertyId: number;
     version: number;
     typeInt: number;
+    fee: string;
     sending: string;
     reference: string;
     amount: string;
@@ -39,6 +42,7 @@ export type ChainTxOmniData = {
 
 export type ChainTxERC20Data = {
     blockHeight: number;
+    fee: string;
     sender: string;
     recipient: string;
     amount: string;

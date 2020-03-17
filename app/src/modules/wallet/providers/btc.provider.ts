@@ -118,9 +118,12 @@ export class BtcProvider extends Provider implements OnApplicationBootstrap {
                 txId: btc.txId,
                 blockHeight: btc.blockHeight,
                 blockTime: btc.blockTime,
+                fee: btc.fee,
                 vIns: btc.vIns,
                 vOuts: btc.vOuts
             } as BtcDef,
+            ins: ins,
+            outs: outs,
             accounts: filter.filter((val: Account) => {
                 if (exists.includes(val.address)) {
                     return false;
@@ -137,6 +140,7 @@ export class BtcProvider extends Provider implements OnApplicationBootstrap {
         chainTxIns.txData = {
             blockHeight: src.blockHeight,
             blockTime: src.blockTime,
+            fee: src.fee,
             vIns: src.vIns,
             vOuts: src.vOuts
         } as ChainTxBtcData;
@@ -154,6 +158,7 @@ export class BtcProvider extends Provider implements OnApplicationBootstrap {
             txId: txId,
             blockHeight: btcData.blockHeight,
             blockTime: btcData.blockTime,
+            fee: btcData.fee,
             vIns: btcData.vIns,
             vOuts: btcData.vOuts
         } as BtcDef;

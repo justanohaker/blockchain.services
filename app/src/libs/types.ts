@@ -10,3 +10,8 @@ export const enum FeePriority {
     NORMAL = 'normal',
     LOWER = 'lower'
 }
+
+export const enum TransactionDirection {
+    In = 'In',
+    Out = 'Out',
+}

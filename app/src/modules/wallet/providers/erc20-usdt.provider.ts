@@ -97,10 +97,13 @@ export class Erc20UsdtProvider extends Provider implements OnApplicationBootstra
             data: {
                 txId: erc20Usdt.txId,
                 blockHeight: erc20Usdt.blockHeight,
+                fee: erc20Usdt.fee,
                 sender: erc20Usdt.sender,
                 recipient: erc20Usdt.recipient,
                 amount: erc20Usdt.amount
             } as ERC20UsdtDef,
+            ins: [erc20Usdt.sender],
+            outs: [erc20Usdt.recipient],
             accounts: result
         };
     }
@@ -110,6 +113,7 @@ export class Erc20UsdtProvider extends Provider implements OnApplicationBootstra
         chainTxIns.txId = src.txId;
         chainTxIns.txData = {
             blockHeight: src.blockHeight,
+            fee: src.fee,
             sender: src.sender,
             recipient: src.recipient,
             amount: src.amount
@@ -127,6 +131,7 @@ export class Erc20UsdtProvider extends Provider implements OnApplicationBootstra
         return {
             txId: txId,
             blockHeight: erc20Data.blockHeight,
+            fee: erc20Data.fee,
             sender: erc20Data.sender,
             recipient: erc20Data.recipient,
             amount: erc20Data.amount

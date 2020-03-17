@@ -32,6 +32,8 @@ export type TxDef = BtcDef
 
 export type TxAddActionResult = {
     data: TxDef;            // 通知格式
+    ins: string[];          // 发送者列表
+    outs: string[];         // 接收者地址列表
     accounts: Account[]     // 账号列表
 };
 

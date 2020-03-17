@@ -9,7 +9,7 @@ import {
     bipHexPrivFromxPriv,
     bipWIFFromxPriv
 } from '../../../libs/helpers/bipHelper';
-import { Token } from '../../../libs/types';
+import { Token, TransactionDirection } from '../../../libs/types';
 import { Client } from '../../../models/clients.model';
 import { User } from '../../../models/users.model';
 import { Webhook } from '../../../models/user.webhook.model';
@@ -159,6 +159,19 @@ export class Provider implements IChainProvider, IServiceProvider {
         });
         if (transferResult == null
             || !transferResult.success) {
+            // failure
+            const webhooks = await this.getWebHooks(clientId, accountId);
+            for (const webhook of webhooks) {
+                this.PushService?.addPush(webhook.postUrl, {
+                    type: PushEventType.TransactionCreated,
+                    platform: this.PushPlatform,
+                    data: {
+                        status: false,
+                        accountId: accountId,
+                        address: keyPair.address,
+                    }
+                })
+            }
             throw new Error(
                 transferResult == null
                     ? 'Unimplemented!'
@@ -172,6 +185,7 @@ export class Provider implements IChainProvider, IServiceProvider {
                 type: PushEventType.TransactionCreated,
                 platform: this.PushPlatform,
                 data: {
+                    status: true,
                     accountId: accountId,
                     address: keyPair.address,
                     txid: transferResult.txId!
@@ -259,7 +273,8 @@ export class Provider implements IChainProvider, IServiceProvider {
 
             // BEGIN: push new transaction confirmed
             const addresses: string[] = [];
-            for (const account of repo.accounts) {
+            const { accounts, data, ins, outs } = repo;
+            for (const account of accounts) {
                 if (!addresses.includes(account.address)) {
                     addresses.push(account.address);
                 }
@@ -271,7 +286,14 @@ export class Provider implements IChainProvider, IServiceProvider {
                     this.PushService?.addPush(webhook.postUrl, {
                         type: PushEventType.TransactionConfirmed,
                         platform: this.PushPlatform,
-                        data: repo.data
+                        data: {
+                            accountId: account.accountId,
+                            address: account.address,
+                            direction: ins.includes(account.address)
+                                ? TransactionDirection.In
+                                : TransactionDirection.Out,
+                            transaction: data
+                        }
                     });
                 }
             }
