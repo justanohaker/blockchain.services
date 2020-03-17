@@ -52,7 +52,7 @@ export class Erc20UsdtService extends IService implements OnApplicationBootstrap
         for (const address of addresses) {
             // result.result.push({ address, balance: '0' });
             try {
-                const bl = await this.httpProvider.getBalance(address);
+                const bl = await this.contract.balanceOf(address);
                 result.result.push({ address, balance: bl.toString() });
             } catch (error) {
                 result.result.push({ address, balance: '0' });
