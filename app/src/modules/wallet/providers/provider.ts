@@ -151,14 +151,57 @@ export class Provider implements IChainProvider, IServiceProvider {
             ),
             address: accountRepo.address
         };
-        const transferResult = await this.IService?.transfer({
-            keyPair,
-            address: toAddress,
-            amount,
-            feePriority
-        });
-        if (transferResult == null
-            || !transferResult.success) {
+        try {
+            const transferResult = await this.IService?.transfer({
+                keyPair,
+                address: toAddress,
+                amount,
+                feePriority
+            });
+            if (transferResult == null
+                || !transferResult.success) {
+                // failure
+                const webhooks = await this.getWebHooks(clientId, accountId);
+                for (const webhook of webhooks) {
+                    this.PushService?.addPush(webhook.postUrl, {
+                        type: PushEventType.TransactionCreated,
+                        platform: this.PushPlatform,
+                        data: {
+                            status: false,
+                            accountId: accountId,
+                            address: keyPair.address,
+                        }
+                    })
+                }
+                this.Logger?.log(`transfer(failure): ${
+                    transferResult == null
+                        ? 'Unimplemented!'
+                        : JSON.stringify(transferResult.error!)
+                    }`)
+                throw new Error(
+                    transferResult == null
+                        ? 'Unimplemented!'
+                        : JSON.stringify(transferResult.error!)
+                );
+            }
+            // BEGIN: push new transaction created??
+            const webhooks = await this.getWebHooks(clientId, accountId);
+            for (const webhook of webhooks) {
+                this.PushService?.addPush(webhook.postUrl, {
+                    type: PushEventType.TransactionCreated,
+                    platform: this.PushPlatform,
+                    data: {
+                        status: true,
+                        accountId: accountId,
+                        address: keyPair.address,
+                        txId: transferResult.txId!
+                    }
+                });
+            }
+            // END
+            this.Logger?.log(`transer(success): ${transferResult.txId}`);
+            return transferResult.txId!;
+        } catch (error) {
             // failure
             const webhooks = await this.getWebHooks(clientId, accountId);
             for (const webhook of webhooks) {
@@ -172,34 +215,9 @@ export class Provider implements IChainProvider, IServiceProvider {
                     }
                 })
             }
-            this.Logger?.log(`transfer(failure): ${
-                transferResult == null
-                    ? 'Unimplemented!'
-                    : JSON.stringify(transferResult.error!)
-                }`)
-            throw new Error(
-                transferResult == null
-                    ? 'Unimplemented!'
-                    : JSON.stringify(transferResult.error!)
-            );
+            this.Logger?.log(`transfer(failure): ${error}`);
+            throw error;
         }
-        // BEGIN: push new transaction created??
-        const webhooks = await this.getWebHooks(clientId, accountId);
-        for (const webhook of webhooks) {
-            this.PushService?.addPush(webhook.postUrl, {
-                type: PushEventType.TransactionCreated,
-                platform: this.PushPlatform,
-                data: {
-                    status: true,
-                    accountId: accountId,
-                    address: keyPair.address,
-                    txid: transferResult.txId!
-                }
-            });
-        }
-        // END
-        this.Logger?.log(`transer(success): ${transferResult.txId}`);
-        return transferResult.txId!;
     }
 
     async onNewAccount(addresses: string[]): Promise<void> {
