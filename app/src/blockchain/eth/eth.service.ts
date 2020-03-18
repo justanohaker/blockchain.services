@@ -14,6 +14,7 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
     private logger: Logger = new Logger('Logger', true);
     private httpProvider: ethers.providers.Provider
     private interval_count = 5//同时获取tx数量的异步数量
+    private transferCount = 0; 
     private tx_cache: Array<string> = new Array();
     private contracts: Array<string> = new Array();
     constructor() {
@@ -96,7 +97,7 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
                         } else if (this.addresses && (
                             this.addresses.includes(transaction.sender) ||
                             this.addresses.includes(transaction.recipient)
-                        )) {
+                        )) {//TODO other contracts？
                             console.log('[[[EthService loopTx]]] original tx:', JSON.stringify(tx));
                             console.log('[[[EthService loopTx]]]:', JSON.stringify(transaction));
                             this.provider.onNewTransaction([transaction]);
@@ -161,7 +162,7 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
     async transfer(param: TransferDef): Promise<TransferResp> {
         let nonce = await this.httpProvider.getTransactionCount(param.keyPair.address)
         let transaction = {
-            nonce: nonce,
+            nonce: nonce+this.transferCount,
             gasLimit: 21000,
             gasPrice: utils.bigNumberify(getFee(param.feePriority)),// Gwei   ,slow 5000000000 normal 15000000000 fast 30000000000
             to: param.address,
@@ -172,11 +173,11 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
         let wallet2 = new ethers.Wallet(param.keyPair.privateKey);
         let signedTransaction = await wallet2.sign(transaction)
         let tx = await this.httpProvider.sendTransaction(signedTransaction)
+        this.transferCount++
         console.log('tx:', tx);
-        this.httpProvider.waitForTransaction(tx.hash, 1).then(
+        this.httpProvider.waitForTransaction(tx.hash).then(
             (receipt) => {
-                let sendaddress = receipt.from
-                console.log(receipt);
+                this.transferCount--
             }
         )
         return { success: true, txId: tx.hash }
