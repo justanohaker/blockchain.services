@@ -86,6 +86,8 @@ type DataType = {
   	address: string;		// 地址
   	// @note: 只有在status=true时，此字段才有效
   	txid: string;				// 交易Id(此时交易还未确认，刚广播到网络中)
+  	// @note: 只有在status=false时，此字段才有效
+  	error: string;			// 交易失败时的错误信息
 }
 ```
 

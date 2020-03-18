@@ -135,23 +135,23 @@ export class Provider implements IChainProvider, IServiceProvider {
         const toAddress = despositDto.address;
         const amount = despositDto.amount;
         const feePriority = despositDto.feePriority;
-        if (!await this.AddressValidator(toAddress) ||
-            !await this.exists(clientId, accountId)) {
-            throw new Error('Parameter Error!');
-        }
-        const accountRepo = await this.retrieveAccount(clientId, accountId);
-        const keyPair: AccountKeyPair = {
-            privateKey: await bipHexPrivFromxPriv(
-                accountRepo.privkey,
-                this.Token
-            ),
-            wif: await bipWIFFromxPriv(
-                accountRepo.privkey,
-                this.Token
-            ),
-            address: accountRepo.address
-        };
         try {
+            if (!await this.AddressValidator(toAddress) ||
+                !await this.exists(clientId, accountId)) {
+                throw new Error('Parameter Error!');
+            }
+            const accountRepo = await this.retrieveAccount(clientId, accountId);
+            const keyPair: AccountKeyPair = {
+                privateKey: await bipHexPrivFromxPriv(
+                    accountRepo.privkey,
+                    this.Token
+                ),
+                wif: await bipWIFFromxPriv(
+                    accountRepo.privkey,
+                    this.Token
+                ),
+                address: accountRepo.address
+            };
             const transferResult = await this.IService?.transfer({
                 keyPair,
                 address: toAddress,
@@ -179,10 +179,14 @@ export class Provider implements IChainProvider, IServiceProvider {
                     })
                 }
                 this.Logger?.log(`transfer(failure): ${
-                    transferResult == null
-                        ? 'Unimplemented!'
-                        : transferResult.error!
-                    }`)
+                    JSON.stringify({
+                        status: false,
+                        accountId: accountId,
+                        address: keyPair.address,
+                        error: transferResult == null
+                            ? 'Unimplemented!'
+                            : (transferResult.error!.toString())
+                    }, null, 2)}`)
                 throw new Error(
                     transferResult == null
                         ? 'Unimplemented!'
@@ -204,24 +208,39 @@ export class Provider implements IChainProvider, IServiceProvider {
                 });
             }
             // END
-            this.Logger?.log(`transer(success): ${transferResult.txId}`);
+            this.Logger?.log(`transer(success): ${JSON.stringify({
+                status: true,
+                accountId: accountId,
+                address: keyPair.address,
+                txId: transferResult.txId!
+            }, null, 2)}`);
             return transferResult.txId!;
         } catch (error) {
             // failure
-            const webhooks = await this.getWebHooks(clientId, accountId);
-            for (const webhook of webhooks) {
-                this.PushService?.addPush(webhook.postUrl, {
-                    type: PushEventType.TransactionCreated,
-                    platform: this.PushPlatform,
-                    data: {
-                        status: false,
-                        accountId: accountId,
-                        address: keyPair.address,
-                        error: `${error}`,
-                    }
-                })
+            const accountRepo = await this.retrieveAccount(clientId, accountId);
+            if (accountRepo) {
+                const webhooks = await this.getWebHooks(clientId, accountId);
+                for (const webhook of webhooks) {
+                    this.PushService?.addPush(webhook.postUrl, {
+                        type: PushEventType.TransactionCreated,
+                        platform: this.PushPlatform,
+                        data: {
+                            status: false,
+                            accountId: accountId,
+                            address: accountRepo.address,
+                            error: `${error}`,
+                        }
+                    })
+                }
+                this.Logger?.log(`transfer(exception): ${JSON.stringify({
+                    status: false,
+                    accountId: accountId,
+                    address: accountRepo.address,
+                    error: error.toString()
+                })}`)
+            } else {
+                this.Logger?.log(`transfer(exception): ${error}`);
             }
-            this.Logger?.log(`transfer(failure): ${error}`);
             throw error;
         }
     }
