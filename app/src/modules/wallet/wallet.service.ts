@@ -212,9 +212,10 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
                 result.errorCode = RespErrorCode.BAD_REQUEST;
             }
         } catch (error) {
-            result.success = false;
-            result.error = `${error}`;
-            result.errorCode = RespErrorCode.BAD_REQUEST;
+            throw error;
+            // result.success = false;
+            // result.error = `${error}`;
+            // result.errorCode = RespErrorCode.BAD_REQUEST;
         }
 
         return result;

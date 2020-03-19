@@ -86,7 +86,7 @@ type DataType = {
   	address: string;		// 地址
   	serial: number;			// 请求序号， Http返回也有此请求序号
   	// @note: status=true时，此字段有效
-  	txid: string;				// 交易Id(此时交易还未确认，刚广播到网络中)
+  	txId: string;				// 交易Id(此时交易还未确认，刚广播到网络中)
   	// @note: status=false时，此字段有效
   	error: string;			// 交易失败时的错误信息
 }

@@ -139,6 +139,7 @@ export class Provider implements IChainProvider, IServiceProvider {
         despositDto: DespositDto
     ): Promise<TransferResult> {
         this.Logger?.log(`transfer ${clientId}, ${accountId}, ${JSON.stringify(despositDto, null, 2)}`);
+        const eventType = PushEventType.TransactionCreated;
         const serial = await this.loadAndIncrSerial(clientId, accountId, this.Token);
         let result: TransferResult = {
             success: true,
@@ -173,63 +174,28 @@ export class Provider implements IChainProvider, IServiceProvider {
             if (transferResult == null
                 || !transferResult.success) {
                 // failure
-                const webhooks = await this.getWebHooks(clientId, accountId);
-                for (const webhook of webhooks) {
-                    this.PushService?.addPush(webhook.postUrl, {
-                        type: PushEventType.TransactionCreated,
-                        platform: this.PushPlatform,
-                        data: {
-                            status: false,
-                            accountId: accountId,
-                            serial,
-                            address: keyPair.address,
-                            error: `${
-                                transferResult == null
-                                    ? 'Bad Request!'
-                                    : transferResult.error!
-                                }`
-                        }
-                    })
-                }
-                this.Logger?.log(`transfer(failure): ${
-                    JSON.stringify({
-                        status: false,
-                        accountId: accountId,
-                        address: keyPair.address,
-                        serial: serial,
-                        error: transferResult == null
-                            ? 'Unimplemented!'
-                            : (transferResult.error!.toString())
-                    }, null, 2)}`)
-                throw new Error(
-                    transferResult == null
-                        ? 'Unimplemented!'
-                        : `${transferResult.error!}`
-                );
+                const notificationData = {
+                    status: false,
+                    accountId,
+                    address: keyPair.address,
+                    serial,
+                    error: `${transferResult == null ? 'Unimplemented!' : (transferResult.error!.toString())}`
+                };
+                this.pushNotification(clientId, accountId, eventType, notificationData);
+                this.Logger?.log(`transfer(Failure): ${JSON.stringify(notificationData, null, 2)}`)
+                throw new Error(transferResult == null ? 'Unimplemented!' : `${transferResult.error!}`);
             }
             // BEGIN: push new transaction created??
-            const webhooks = await this.getWebHooks(clientId, accountId);
-            for (const webhook of webhooks) {
-                this.PushService?.addPush(webhook.postUrl, {
-                    type: PushEventType.TransactionCreated,
-                    platform: this.PushPlatform,
-                    data: {
-                        status: true,
-                        accountId: accountId,
-                        address: keyPair.address,
-                        serial,
-                        txId: transferResult.txId!
-                    }
-                });
-            }
-            // END
-            this.Logger?.log(`transer(success): ${JSON.stringify({
+            const notificationData = {
                 status: true,
-                accountId: accountId,
+                accountId,
                 address: keyPair.address,
                 serial,
                 txId: transferResult.txId!
-            }, null, 2)}`);
+            }
+            this.pushNotification(clientId, accountId, eventType, notificationData);
+            // END
+            this.Logger?.log(`transer(Success): ${JSON.stringify(notificationData, null, 2)}`);
             result.success = true;
             result.txId = transferResult.txId!;
         } catch (error) {
@@ -238,30 +204,18 @@ export class Provider implements IChainProvider, IServiceProvider {
             result.error = `${error}`;
             const accountRepo = await this.retrieveAccount(clientId, accountId);
             if (accountRepo) {
-                const webhooks = await this.getWebHooks(clientId, accountId);
-                for (const webhook of webhooks) {
-                    this.PushService?.addPush(webhook.postUrl, {
-                        type: PushEventType.TransactionCreated,
-                        platform: this.PushPlatform,
-                        data: {
-                            status: false,
-                            accountId: accountId,
-                            address: accountRepo.address,
-                            serial,
-                            error: `${error}`,
-                        }
-                    })
-                }
-                this.Logger?.log(`transfer(exception): ${JSON.stringify({
+                const notificationData = {
                     status: false,
-                    accountId: accountId,
+                    accountId,
                     address: accountRepo.address,
                     serial,
-                    error: error.toString()
-                })}`)
+                    error: `${error}`,
+                };
+                this.pushNotification(clientId, accountId, eventType, notificationData);
+                this.Logger?.log(`transfer(Exception): ${JSON.stringify(notificationData, null, 2)}`)
             } else {
-                this.Logger?.log(`transfer(exception): ${error}`);
-
+                this.Logger?.log(`transfer(Exception): ${error}`);
+                throw error;
             }
         }
         return result;
@@ -269,26 +223,16 @@ export class Provider implements IChainProvider, IServiceProvider {
 
     async onNewAccount(addresses: string[]): Promise<void> {
         this.Logger?.log(`onNewAccount ${JSON.stringify(addresses, null, 2)}`);
+        const eventType = PushEventType.AccountNew;
         this.IService?.onNewAccounts(addresses);
         this.IService?.onUpdateBalances(addresses);
         // BEGIN: pusher new Account
         for (const address of addresses) {
             const accountRepo = await this.findAccountByAddress(address);
             if (!accountRepo) { continue; }
-            const webhooks = await this.getWebHooks(
-                accountRepo.clientId,
-                accountRepo.accountId
-            );
-            for (const webhook of webhooks) {
-                this.PushService?.addPush(webhook.postUrl, {
-                    type: PushEventType.AccountNew,
-                    platform: this.PushPlatform,
-                    data: {
-                        accountId: accountRepo.accountId,
-                        address: accountRepo.address
-                    }
-                });
-            }
+            const { clientId, accountId } = accountRepo;
+            const notificationData = { accountId, address };
+            this.pushNotification(clientId, accountId, eventType, notificationData);
         }
         // END
     }
@@ -307,32 +251,22 @@ export class Provider implements IChainProvider, IServiceProvider {
 
     async onBalanceChanged(newBalances: BalanceDef[]): Promise<void> {
         this.Logger?.log(`onBalanceChanged ${JSON.stringify(newBalances, null, 2)}`);
+        const eventType = PushEventType.BalanceUpdate;
         for (const bln of newBalances) {
             const { address, balance } = bln;
             const repo = await this.updateBalance(address, balance);
             if (!repo) { continue; }
             // BEGIN: push balance changed
-            const webhooks = await this.getWebHooks(
-                repo.clientId,
-                repo.accountId
-            );
-            for (const webhook of webhooks) {
-                this.PushService?.addPush(webhook.postUrl, {
-                    type: PushEventType.BalanceUpdate,
-                    platform: this.PushPlatform,
-                    data: {
-                        accountId: repo.accountId,
-                        address: repo.address,
-                        balance: bln.balance
-                    }
-                });
-            }
+            const { clientId, accountId } = repo;
+            const notificationData = { accountId, address, balance };
+            this.pushNotification(clientId, accountId, eventType, notificationData);
             // END
         }
     }
 
     async onNewTransaction(newTransactions: Transaction[]): Promise<void> {
         this.Logger?.log(`onNewTransaction ${JSON.stringify(newTransactions, null, 2)}`);
+        const eventType = PushEventType.TransactionConfirmed;
         for (const transaction of newTransactions) {
             if (!await this.TxChecker(transaction)) {
                 continue;
@@ -349,52 +283,26 @@ export class Provider implements IChainProvider, IServiceProvider {
                 if (!addresses.includes(account.address)) {
                     addresses.push(account.address);
                 }
-                // if (ins.includes(account.address)) {
-                //     this.Logger?.log(`notificationData: ${JSON.stringify({
-                //         accountId: account.accountId,
-                //         address: account.address,
-                //         direction: TransactionDirection.In,
-                //         transaction: repo.data
-                //     }, null, 2)}`);
-                // }
-                // if (outs.includes(account.address)) {
-                //     this.Logger?.log(`notificationData: ${JSON.stringify({
-                //         accountId: account.accountId,
-                //         address: account.address,
-                //         direction: TransactionDirection.Out,
-                //         transaction: repo.data
-                //     }, null, 2)}`);
-                // }
-                const webhooks = await this.getWebHooks(
-                    account.clientId,
-                    account.accountId
-                );
-                for (const webhook of webhooks) {
-                    if (ins.includes(account.address)) {
-                        this.PushService?.addPush(webhook.postUrl, {
-                            type: PushEventType.TransactionConfirmed,
-                            platform: this.PushPlatform,
-                            data: {
-                                accountId: account.accountId,
-                                address: account.address,
-                                direction: TransactionDirection.In,
-                                transaction: data
-                            }
-                        });
-                    }
-
-                    if (outs.includes(account.address)) {
-                        this.PushService?.addPush(webhook.postUrl, {
-                            type: PushEventType.TransactionConfirmed,
-                            platform: this.PushPlatform,
-                            data: {
-                                accountId: account.accountId,
-                                address: account.address,
-                                direction: TransactionDirection.Out,
-                                transaction: data
-                            }
-                        });
-                    }
+                const { clientId, accountId, address } = account;
+                if (ins.includes(address)) {
+                    const notificationData = {
+                        accountId,
+                        address,
+                        direction: TransactionDirection.Out,
+                        transaction: data
+                    };
+                    this.pushNotification(clientId, accountId, eventType, notificationData);
+                    this.Logger?.log(`notificationData: ${JSON.stringify(notificationData, null, 2)}`);
+                }
+                if (outs.includes(address)) {
+                    const notificationData = {
+                        accountId,
+                        address,
+                        direction: TransactionDirection.In,
+                        transaction: data
+                    };
+                    this.pushNotification(clientId, accountId, eventType, notificationData);
+                    this.Logger?.log(`notificationData: ${JSON.stringify(notificationData, null, 2)}`);
                 }
             }
             // END
@@ -480,5 +388,25 @@ export class Provider implements IChainProvider, IServiceProvider {
         const serialNo = serialRepo.serial;
         await this.SerialRepo.save(serialRepo);
         return serialNo;
+    }
+
+    protected async pushNotification(
+        clientId: string,
+        accountId: string,
+        eventType: PushEventType,
+        data: Object
+    ): Promise<void> {
+        const webhooks = await this.getWebHooks(clientId, accountId);
+        if (!webhooks || webhooks.length <= 0) {
+            return;
+        }
+
+        for (const webhook of webhooks) {
+            this.PushService?.addPush(webhook.postUrl, {
+                type: eventType,
+                platform: this.PushPlatform,
+                data,
+            });
+        }
     }
 }

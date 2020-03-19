@@ -8,9 +8,6 @@ export class Webhook {
     @Column()
     clientId: string;
 
-    // @Column()
-    // accountId: string;
-
     @Column()
     postUrl: string;
 }
