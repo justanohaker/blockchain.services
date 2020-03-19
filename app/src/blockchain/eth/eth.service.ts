@@ -8,13 +8,15 @@ import * as usdt_config from "src/blockchain/erc20-tokens/configs/erc20-usdt.jso
 const UPDATE_TIMEOUT: number = 2 * 1000;
 const UPDATE_IDLE: number = 10 * 1000;
 const MAX_UPDATE_ADDRESSES = 10;
+const LRU = require("lru-cache")
 const InputDataDecoder = require('ethereum-input-data-decoder');
+const options = { max: 20000, maxAge: 1000 * 60 * 30 }
 @Injectable()
 export class EthService extends IService implements OnApplicationBootstrap, OnModuleInit {
     private logger: Logger = new Logger('Logger', true);
     private httpProvider: ethers.providers.Provider
     private interval_count = 5//同时获取tx数量的异步数量
-    private transferCount = 0; 
+    private nonceCache =  new LRU(options); 
     private tx_cache: Array<string> = new Array();
     private contracts: Array<string> = new Array();
     constructor() {
@@ -23,7 +25,7 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
             new ethers.providers.JsonRpcProvider("http://111.231.105.174:8545");//=http://127.0.0.1:8545
         this.contracts.push(usdt_config.address)
 
-    }
+        }
 
     onModuleInit() {
         this.httpProvider.on('block', (blockNumber) => {
@@ -161,28 +163,39 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
      */
     async transfer(param: TransferDef): Promise<TransferResp> {
         let nonce = await this.httpProvider.getTransactionCount(param.keyPair.address)
+        if(this.nonceCache.has(param.keyPair.address)){
+            nonce+=this.nonceCache.get(param.keyPair.address)
+        }
         let transaction = {
-            nonce: nonce+this.transferCount,
+            nonce: nonce,
             gasLimit: 21000,
             gasPrice: utils.bigNumberify(getFee(param.feePriority)),// Gwei   ,slow 5000000000 normal 15000000000 fast 30000000000
             to: param.address,
             value: utils.bigNumberify(param.amount),//wei utils.parseEther("1.0"),
             chainId: ethers.utils.getNetwork('ropsten').chainId
         }
-        console.log(transaction);
         let wallet2 = new ethers.Wallet(param.keyPair.privateKey);
         let signedTransaction = await wallet2.sign(transaction)
+        if(this.nonceCache.has(param.keyPair.address)){
+            this.nonceCache.set(param.keyPair.address,this.nonceCache.get(param.keyPair.address)+1)
+        }else{
+            this.nonceCache.set(param.keyPair.address,1)
+        }
         let tx = await this.httpProvider.sendTransaction(signedTransaction)
-        this.transferCount++
-        console.log('tx:', tx);
+       
+        // console.log('tx:', tx);
         this.httpProvider.waitForTransaction(tx.hash).then(
             (receipt) => {
-                this.transferCount--
+                if(this.nonceCache.has(param.keyPair.address)){
+                    this.nonceCache.set(param.keyPair.address,this.nonceCache.get(param.keyPair.address)-1)
+                }
+                console.log("nonceCache nonce:",this.nonceCache.get(param.keyPair.address));
             }
         )
         return { success: true, txId: tx.hash }
     }
 }
+
 function getFee(param) {
     switch (param) {
         case FeePriority.HIGH:
