@@ -8,6 +8,13 @@ import {
 import { Account } from '../../../models/accounts.model';
 import { Transaction } from '../../../blockchain/common/types';
 
+export type TransferResult = {
+    success: boolean;
+    serial: number;
+    txId?: string;
+    error?: string;
+}
+
 // TxId包装类型
 type TxIdDef = { txId: string; }
 // Bitcoin定义

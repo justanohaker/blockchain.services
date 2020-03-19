@@ -259,13 +259,17 @@ export class WalletController {
                 despositDto
             );
             if (result.success) {
-                return respSuccess({ txid: result.txid! });
+                return respSuccess({
+                    status: true,
+                    serial: result.serial!,
+                    txId: result.txId!
+                });
             }
-
-            return respFailure(
-                result.errorCode!,
-                result.error!
-            );
+            return respSuccess({
+                status: false,
+                serial: result.serial!,
+                error: result.error!
+            });
         } catch (error) {
             return respFailure(
                 RespErrorCode.INTERNAL_SERVER_ERROR,

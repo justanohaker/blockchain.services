@@ -14,6 +14,7 @@ import { Client } from '../../../models/clients.model';
 import { User } from '../../../models/users.model';
 import { Webhook } from '../../../models/user.webhook.model';
 import { Account } from '../../../models/accounts.model';
+import { Serial } from '../../../models/serial.model';
 import { ChainTx, ChainTxIndex } from '../../../models/transactions.model';
 import { PushPlatform, PushEventType } from '../../../modules/pusher/types';
 import { PusherService } from '../../../modules/pusher/pusher.service';
@@ -25,7 +26,8 @@ import {
     TxChecker,
     TxAddAction,
     FromChainTxAction,
-    ToChainTxAction
+    ToChainTxAction,
+    TransferResult
 } from './types';
 
 export class Provider implements IChainProvider, IServiceProvider {
@@ -54,6 +56,7 @@ export class Provider implements IChainProvider, IServiceProvider {
     protected readonly ClientRepo: Repository<Client>;
     protected readonly UserRepo: Repository<User>;
     protected readonly AccountRepo: Repository<Account>;
+    protected readonly SerialRepo: Repository<Serial>;
     protected readonly WebHookRepo: Repository<Webhook>;
     protected readonly ChainTxRepo: Repository<ChainTx>;
     protected readonly ChainTxIndexRepo: Repository<ChainTxIndex>;
@@ -130,8 +133,17 @@ export class Provider implements IChainProvider, IServiceProvider {
         return await this.FromChainTxAction(repo);
     }
 
-    async transfer(clientId: string, accountId: string, despositDto: DespositDto): Promise<string> {
+    async transfer(
+        clientId: string,
+        accountId: string,
+        despositDto: DespositDto
+    ): Promise<TransferResult> {
         this.Logger?.log(`transfer ${clientId}, ${accountId}, ${JSON.stringify(despositDto, null, 2)}`);
+        const serial = await this.loadAndIncrSerial(clientId, accountId, this.Token);
+        let result: TransferResult = {
+            success: true,
+            serial
+        };
         const toAddress = despositDto.address;
         const amount = despositDto.amount;
         const feePriority = despositDto.feePriority;
@@ -169,6 +181,7 @@ export class Provider implements IChainProvider, IServiceProvider {
                         data: {
                             status: false,
                             accountId: accountId,
+                            serial,
                             address: keyPair.address,
                             error: `${
                                 transferResult == null
@@ -183,6 +196,7 @@ export class Provider implements IChainProvider, IServiceProvider {
                         status: false,
                         accountId: accountId,
                         address: keyPair.address,
+                        serial: serial,
                         error: transferResult == null
                             ? 'Unimplemented!'
                             : (transferResult.error!.toString())
@@ -203,6 +217,7 @@ export class Provider implements IChainProvider, IServiceProvider {
                         status: true,
                         accountId: accountId,
                         address: keyPair.address,
+                        serial,
                         txId: transferResult.txId!
                     }
                 });
@@ -212,11 +227,15 @@ export class Provider implements IChainProvider, IServiceProvider {
                 status: true,
                 accountId: accountId,
                 address: keyPair.address,
+                serial,
                 txId: transferResult.txId!
             }, null, 2)}`);
-            return transferResult.txId!;
+            result.success = true;
+            result.txId = transferResult.txId!;
         } catch (error) {
             // failure
+            result.success = false;
+            result.error = `${error}`;
             const accountRepo = await this.retrieveAccount(clientId, accountId);
             if (accountRepo) {
                 const webhooks = await this.getWebHooks(clientId, accountId);
@@ -228,6 +247,7 @@ export class Provider implements IChainProvider, IServiceProvider {
                             status: false,
                             accountId: accountId,
                             address: accountRepo.address,
+                            serial,
                             error: `${error}`,
                         }
                     })
@@ -236,13 +256,15 @@ export class Provider implements IChainProvider, IServiceProvider {
                     status: false,
                     accountId: accountId,
                     address: accountRepo.address,
+                    serial,
                     error: error.toString()
                 })}`)
             } else {
                 this.Logger?.log(`transfer(exception): ${error}`);
+
             }
-            throw error;
         }
+        return result;
     }
 
     async onNewAccount(addresses: string[]): Promise<void> {
@@ -438,5 +460,25 @@ export class Provider implements IChainProvider, IServiceProvider {
             await this.ChainTxIndexRepo.save(chainTxIndex);
         }
         return !found;
+    }
+
+    protected async loadAndIncrSerial(clientId: string, accountId: string, token: Token): Promise<number> {
+        let serialRepo = await this.SerialRepo.findOne({
+            clientId,
+            accountId,
+            token
+        });
+        if (!serialRepo) {
+            serialRepo = new Serial();
+            serialRepo.clientId = clientId;
+            serialRepo.accountId = accountId;
+            serialRepo.token = token;
+            serialRepo.serial = 0;
+        }
+
+        serialRepo.serial += 1;
+        const serialNo = serialRepo.serial;
+        await this.SerialRepo.save(serialRepo);
+        return serialNo;
     }
 }

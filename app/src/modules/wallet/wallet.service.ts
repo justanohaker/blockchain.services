@@ -201,7 +201,16 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
         const result: DespositRespDto = { success: true };
         try {
             const provider = this.getProvider(token);
-            result.txid = await provider.transfer(clientId, accountId, despositDto);
+            const transferResult = await provider.transfer(clientId, accountId, despositDto);
+            result.success = transferResult.success;
+            if (transferResult.success) {
+                result.serial = transferResult.serial!;
+                result.txId = transferResult.txId!;
+            } else {
+                result.serial = transferResult.serial!;
+                result.error = transferResult.error!
+                result.errorCode = RespErrorCode.BAD_REQUEST;
+            }
         } catch (error) {
             result.success = false;
             result.error = `${error}`;

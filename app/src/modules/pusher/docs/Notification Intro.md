@@ -84,10 +84,29 @@ type DataType = {
   	status: boolean;		// 交易是否成功，
   	accountId: string;	// 账号Id
   	address: string;		// 地址
-  	// @note: 只有在status=true时，此字段才有效
+  	serial: number;			// 请求序号， Http返回也有此请求序号
+  	// @note: status=true时，此字段有效
   	txid: string;				// 交易Id(此时交易还未确认，刚广播到网络中)
-  	// @note: 只有在status=false时，此字段才有效
+  	// @note: status=false时，此字段有效
   	error: string;			// 交易失败时的错误信息
+}
+```
+
+
+
+#### HTTP Desposit Response
+
+```typescript
+type Response = {
+		success: boolean;						// true
+		data: {											// HTTP Response数据
+    		status: boolean;				// 请求处理状态
+      	serial: number;					// 请求序号，与Notification中的序号对应
+      	// @note: status=true时，此字段有效
+      	txId: string;						// 交易Id
+      	// @note: status=false时，此字段有效
+      	error: string;					// 请求处理失败的错误信息
+  	}
 }
 ```
 

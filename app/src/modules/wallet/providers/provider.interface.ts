@@ -1,7 +1,7 @@
 import { DespositDto } from "../wallet.dto";
 import { User } from "../../../models/users.model";
 import { Account } from '../../../models/accounts.model'
-import { TxDef } from "./types";
+import { TxDef, TransferResult } from "./types";
 
 // 链相关功能提供者接口
 export interface IChainProvider {
@@ -40,7 +40,7 @@ export interface IChainProvider {
      * @param account 账号Id
      * @param despositDto 转账参数
      */
-    transfer(clientId: string, accountId: string, despositDto: DespositDto): Promise<string>;
+    transfer(clientId: string, accountId: string, despositDto: DespositDto): Promise<TransferResult>;
 
     /**
      * 添加新的账号信息

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { IChainProvider } from './provider.interface';
 import { User } from '../../../models/users.model';
 import { Account } from '../../../models/accounts.model';
+import { TransferResult } from './types';
 
 @Injectable()
 export class NullProvider implements IChainProvider {
@@ -35,7 +36,7 @@ export class NullProvider implements IChainProvider {
         throw new Error('Parameter Error!');
     }
 
-    async transfer(): Promise<string> {
+    async transfer(): Promise<TransferResult> {
         throw new Error('Parameter Error!');
     }
 

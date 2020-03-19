@@ -10,6 +10,7 @@ import { PusherService } from '../../../modules/pusher/pusher.service';
 import { PushPlatform } from '../../../modules/pusher/types';
 import { Client } from '../../../models/clients.model';
 import { User } from '../../../models/users.model';
+import { Serial } from '../../../models/serial.model';
 import { Webhook } from '../../../models/user.webhook.model';
 import { Account } from '../../../models/accounts.model';
 import { ChainTx, ChainTxIndex, ChainTxOmniData } from '../../../models/transactions.model';
@@ -32,6 +33,7 @@ export class OmniUsdtProvider extends Provider implements OnApplicationBootstrap
         @InjectRepository(User) public readonly UserRepo: Repository<User>,
         @InjectRepository(Webhook) public readonly WebHookRepo: Repository<Webhook>,
         @InjectRepository(Account) public readonly AccountRepo: Repository<Account>,
+        @InjectRepository(Serial) public readonly SerialRepo: Repository<Serial>,
         @InjectRepository(ChainTx) public readonly ChainTxRepo: Repository<ChainTx>,
         @InjectRepository(ChainTxIndex) public readonly ChainTxIndexRepo: Repository<ChainTxIndex>,
         public readonly PushService: PusherService,

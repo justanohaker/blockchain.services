@@ -119,5 +119,7 @@ export class TransactionRespDto extends ResponseBase {
 }
 
 export class DespositRespDto extends ResponseBase {
-    txid?: string;
+    serial?: number;
+    txId?: string;
+    error?: string;
 }
