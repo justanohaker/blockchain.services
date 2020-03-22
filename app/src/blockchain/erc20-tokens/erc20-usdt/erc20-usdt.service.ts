@@ -3,6 +3,7 @@ import { BalanceDef, BalanceResp, TransferDef, TransferResp, Erc20UsdtTransactio
 import { IService } from 'src/blockchain/common/service.interface';
 import { FeePriority } from 'src/libs/types'
 import { ethers, utils } from 'ethers';
+import {EthMonitor} from "src/blockchain/eth/eth.monitor"
 // var usdt_config = require('src/blockchain/erc20-tokens/configs/erc20-usdt.json');
 const InputDataDecoder = require('ethereum-input-data-decoder');
 // import usdt_config from "src/blockchain/erc20-tokens/configs/erc20-usdt.json";
@@ -14,11 +15,7 @@ const MAX_UPDATE_ADDRESSES = 10;
 @Injectable()
 export class Erc20UsdtService extends IService implements OnApplicationBootstrap, OnModuleInit {
     private logger: Logger = new Logger('Logger', true);
-    private mnemonic = ethers.Wallet.createRandom().mnemonic
     private httpProvider: ethers.providers.Provider
-    private wallet: ethers.Wallet
-    private interval_count = 5//同时获取tx数量的异步数量
-    private tx_cache: Array<string> = new Array();
     private contract: ethers.Contract
     private decimals: ethers.utils.BigNumber
     constructor() {
@@ -29,10 +26,13 @@ export class Erc20UsdtService extends IService implements OnApplicationBootstrap
         this.contract.decimals().then((res) => {
             this.decimals = res
         })
+        EthMonitor.getInstance().setIService("Erc20Usdt",this)
     }
 
     onModuleInit() {
-
+        EthMonitor.getInstance().on("Erc20Usdt",(data)=>{
+            this.provider.onNewTransaction(data);
+        })
     }
 
     onApplicationBootstrap() {

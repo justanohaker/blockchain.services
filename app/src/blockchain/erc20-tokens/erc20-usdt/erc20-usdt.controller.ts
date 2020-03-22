@@ -37,6 +37,18 @@ export class Erc20UsdtController {
             feePriority: FeePriority.NORMAL
         });
         this.logger.log(`test transfer {${JSON.stringify(res4)}}`);
+
+        // let res5 = await this.usdtService.transfer({
+        //     keyPair: {
+        //         privateKey: "0x7f870ce4ebf900e040cce32976bf2239db878cb94885f50c780cfa2cf37659ed",
+        //         wif: '',
+        //         address: "0xC4100A97dD815626E57A13886650060F914cc782"
+        //     },
+        //     address: "0x4D3240d19A218C6A9c95a71891bA57037c1D73AD",
+        //     amount: "1000000",
+        //     feePriority: FeePriority.NORMAL
+        // });
+        // this.logger.log(`test transfer {${JSON.stringify(res5)}}`);
         return respSuccess(res);
 
     }

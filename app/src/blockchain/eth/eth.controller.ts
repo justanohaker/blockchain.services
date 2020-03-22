@@ -35,10 +35,23 @@ export class EthController {
                 address: "0xC4100A97dD815626E57A13886650060F914cc782"
             },
             address: "0x0Dd0C25B0a56564327aE70f0aeD805024084c35F",
-            amount: "1000000",
+            amount: "1000000000",
             feePriority: FeePriority.NORMAL
         });
         this.logger.log(`test transfer {${JSON.stringify(res4)}}`);
+
+        // let res5 = await this.ethService.transfer({
+        //     keyPair: {
+        //         privateKey: "0x0bbbd483ad36f06425c359ac2f602d3c527131b1bb066cb342f9cacdf3e4532c",
+        //         wif: '',
+        //         address: "0x0Dd0C25B0a56564327aE70f0aeD805024084c35F"
+        //     },
+        //     address: "0xC4100A97dD815626E57A13886650060F914cc782",
+        //     amount: "1000000",
+        //     feePriority: FeePriority.NORMAL
+        // });
+        // this.logger.log(`test transfer {${JSON.stringify(res5)}}`);
+
         return respSuccess(res);
 
     }

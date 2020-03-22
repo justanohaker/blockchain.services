@@ -7,7 +7,7 @@ const MAX_UPDATE_ADDRESSES = 10;
 
 export class IService {
     protected provider?: IServiceProvider;
-    protected addresses: string[];
+    public addresses: string[];
     private _updateAddresses: string[];
 
     constructor() {
