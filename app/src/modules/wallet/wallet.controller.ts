@@ -246,6 +246,7 @@ export class WalletController {
     @ApiBearerAuth()
     @UseGuards(AuthGuard('jwt'))
     @Post('desposit/:coin/:id')
+    @HttpCode(HttpStatus.OK)
     async desposit(
         @AuthClient() client: AuthClientDto,
         @Param() coinParam: CoinParam,
