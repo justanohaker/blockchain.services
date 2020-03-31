@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { IService } from '../../common/service.interface';
-import { TransferDef, TransferResp, BalanceResp, OmniUsdtTransactin } from '../../../blockchain/common/types';
+import { TransferDef, TransferResp, BalanceResp, OmniUsdtTransactin, TransferWithFeeDef } from '../../../blockchain/common/types';
 import Bignumber from 'bignumber.js';
 import coinSelect = require('coinselect');
 import Axios from 'axios';
@@ -182,10 +182,10 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
             // let tx = await client.command('decoderawtransaction', rawtx3, false)
             // console.log('decoderawtransaction ==>', JSON.stringify(tx))
 
-            let txHash = await client.command('sendrawtransaction', txsign.hex);
-            console.log('sendrawtransaction ==>', txHash)
+            let txid = await client.command('sendrawtransaction', txsign.hex);
+            console.log('sendrawtransaction ==>', txid)
 
-            return { success: true, txId: txHash };
+            return { success: true, txId: txid };
         } catch (error) {
             console.log(error)
             return { success: false, error };
@@ -214,4 +214,56 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
         return feeRate;
     }
 
+    async transferWithFee(data: TransferWithFeeDef): Promise<TransferResp> {
+        try {
+            let unspents = await client.command('listunspent', 0, 99999999, [data.keyPair.address]);
+            console.log('listunspent ==>', unspents)
+            if (unspents.length === 0) {
+                throw new Error('listunspent is empty');
+            }
+
+            let utxos = [];
+            for (let unspent of unspents) {
+                utxos.push({
+                    txid: unspent.txid,
+                    vout: unspent.vout,
+                    value: unspent.amount,
+                    scriptPubKey: unspent.scriptPubKey,
+                });
+            }
+
+            let amount = new Bignumber(data.amount).times(PRECISION).toFixed(8);
+            // console.log('amount ==>', amount);
+
+            let payload = await client.command('omni_createpayload_simplesend', PROPERTY, amount);
+            // console.log('omni_createpayload_simplesend ==>', payload);
+
+            let txhash = await client.command('createrawtransaction', utxos, {});
+            // console.log('createrawtransaction ==>', txhash)
+
+            let rawtx = await client.command('omni_createrawtx_opreturn', txhash, payload);
+            // console.log('omni_createrawtx_opreturn ==>', rawtx);
+
+            let rawtx2 = await client.command('omni_createrawtx_reference', rawtx, data.address);
+            // console.log('omni_createrawtx_reference ==>', rawtx2);
+
+            let fee = new Bignumber(data.fee).times(PRECISION).toNumber();
+            let rawtx3 = await client.command('omni_createrawtx_change', rawtx2, utxos, data.keyPair.address, fee);
+            // console.log('omni_createrawtx_change ==>', rawtx3);
+
+            let txsign = await client.command('signrawtransactionwithkey', rawtx3, [data.keyPair.wif]);
+            // console.log('signrawtransactionwithkey ==>', txsign)
+
+            // let tx = await client.command('decoderawtransaction', rawtx3, false)
+            // console.log('decoderawtransaction ==>', JSON.stringify(tx))
+
+            let txid = await client.command('sendrawtransaction', txsign.hex);
+            console.log('sendrawtransaction ==>', txid)
+
+            return { success: true, txId: txid };
+        } catch (error) {
+            console.log(error)
+            return { success: false, error };
+        }
+    }
 }
