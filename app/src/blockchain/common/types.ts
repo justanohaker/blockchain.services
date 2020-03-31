@@ -8,14 +8,21 @@ export type AccountKeyPair = {
     address: string;        // 账号地址
 }
 
-/**
- * 转账请求数据
- */
-export type TransferDef = {
+export type TransferBasic = {
     keyPair: AccountKeyPair;    // 转账sender
     address: string;            // 转账recipient
     amount: string;             // 转账金额:各平台的最小单位(sotasi)
+}
+
+/**
+ * 转账请求数据
+ */
+export type TransferDef = TransferBasic & {
     feePriority: FeePriority;   // 转账交易费等级(high, normal, lower)
+}
+
+export type TransferWithFeeDef = TransferBasic & {
+    fee: string;                // 指定的交易费值
 }
 
 /**

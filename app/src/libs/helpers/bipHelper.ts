@@ -4,8 +4,9 @@ import { networks, payments } from 'bitcoinjs-lib';
 import { importPublic, publicToAddress } from 'ethereumjs-util';
 import { utils } from 'ethers';
 import { Token } from '../types';
+import { AppConfig } from '../../config/app.config';
 
-const cDerivePath_Bitcoin = `m/44'/1'/0'/0/0`;      //`m/44'/0'/0'/0/0`
+const cDerivePath_Bitcoin = AppConfig.mainnet ? `m/44'/0'/0'/0/0` : `m/44'/1'/0'/0/0`;
 const cDerivePath_Ethereum = `m/44'/60'/0'/0/0`;
 const cDerivePath_OmniUsdt = cDerivePath_Bitcoin;
 const cDerivePath_Erc20Usdt = cDerivePath_Ethereum;
@@ -28,13 +29,23 @@ export async function bipPrivpubFromSeed(
     let b32: BIP32Interface = null;
     switch (token) {
         case Token.BITCOIN: {
-            const tmp = fromSeed(seed, networks.testnet);
-            b32 = tmp.derivePath(cDerivePath_Bitcoin);
+            if (AppConfig.mainnet) {
+                const tmp = fromSeed(seed, networks.bitcoin);
+                b32 = tmp.derivePath(cDerivePath_Bitcoin);
+            } else {
+                const tmp = fromSeed(seed, networks.testnet);
+                b32 = tmp.derivePath(cDerivePath_Bitcoin);
+            }
             break;
         }
         case Token.OMNI_USDT: {
-            const tmp = fromSeed(seed, networks.testnet);
-            b32 = tmp.derivePath(cDerivePath_OmniUsdt);
+            if (AppConfig.mainnet) {
+                const tmp = fromSeed(seed, networks.bitcoin);
+                b32 = tmp.derivePath(cDerivePath_OmniUsdt);
+            } else {
+                const tmp = fromSeed(seed, networks.testnet);
+                b32 = tmp.derivePath(cDerivePath_OmniUsdt);
+            }
             break;
         }
         case Token.ETHEREUM: {
@@ -72,9 +83,12 @@ async function bipFromBase58(xpriv: string, token: Token) {
     switch (token) {
         case Token.BITCOIN:
         case Token.OMNI_USDT: {
-            b32 = fromBase58(xpriv, networks.testnet);
+            if (AppConfig.mainnet) {
+                b32 = fromBase58(xpriv, networks.bitcoin);
+            } else {
+                b32 = fromBase58(xpriv, networks.testnet);
+            }
             break;
-            // TODO: prod == Ethereum
         }
         case Token.ETHEREUM:
         case Token.ERC20_USDT: {
@@ -105,12 +119,13 @@ export async function bipGetAddressFromXPub(xpub: string, token: Token) {
     switch (token) {
         case Token.BITCOIN:
         case Token.OMNI_USDT: {
-            // TODO: for prod
-            // const p2pkh = payments.p2pkh({ pubkey, network: networks.bitcoin });
-            // return p2pkh.address;
-            // END TODO
-            const p2pkh = payments.p2pkh({ pubkey, network: networks.testnet });
-            return p2pkh.address;
+            if (AppConfig.mainnet) {
+                const p2pkh = payments.p2pkh({ pubkey, network: networks.bitcoin });
+                return p2pkh.address;
+            } else {
+                const p2pkh = payments.p2pkh({ pubkey, network: networks.testnet });
+                return p2pkh.address;
+            }
         }
         case Token.ETHEREUM:
         case Token.ERC20_USDT: {

@@ -4,7 +4,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { respSuccess, respFailure, RespErrorCode } from '../../libs/responseHelper';
 import { AuthClient, AuthClientDto, } from '../../libs/decorators/authclient.decorator';
 import { WalletService } from './wallet.service';
-import { AddAccountDto, IdParam, CoinParam, TxidParam, DespositDto } from './wallet.dto';
+import { AddAccountDto, IdParam, CoinParam, TxidParam, DespositDto, TransferWithFeeDto } from './wallet.dto';
 
 @ApiTags('钱包')
 @Controller('wallet')
@@ -258,6 +258,46 @@ export class WalletController {
                 coinParam.id,
                 coinParam.coin,
                 despositDto
+            );
+            if (result.success) {
+                return respSuccess({
+                    status: true,
+                    serial: result.serial!,
+                    txId: result.txId!
+                });
+            }
+            return respSuccess({
+                status: false,
+                serial: result.serial!,
+                error: result.error!
+            });
+        } catch (error) {
+            return respFailure(
+                RespErrorCode.INTERNAL_SERVER_ERROR,
+                `${error}`
+            );
+        }
+    }
+
+    @ApiOperation({
+        summary: '指定交易费转账',
+        description: '用户使用指定的账号在指定的区块链平台上进行转账操作'
+    })
+    @ApiBearerAuth()
+    @UseGuards(AuthGuard('jwt'))
+    @Post('transferWithFee/:coin/:id')
+    @HttpCode(HttpStatus.OK)
+    async transferWithFee(
+        @AuthClient() client: AuthClientDto,
+        @Param() coinParam: CoinParam,
+        @Body() transferWithFeeDto: TransferWithFeeDto
+    ) {
+        try {
+            const result = await this.walletService.transferWithFee(
+                client.id,
+                coinParam.id,
+                coinParam.coin,
+                transferWithFeeDto
             );
             if (result.success) {
                 return respSuccess({

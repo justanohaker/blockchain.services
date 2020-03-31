@@ -1,4 +1,4 @@
-import { TransferDef, TransferResp, BalanceResp } from './types';
+import { TransferDef, TransferResp, BalanceResp, TransferWithFeeDef } from './types';
 import { IServiceProvider } from './service.provider';
 
 const UPDATE_TIMEOUT: number = 2 * 1000;
@@ -55,6 +55,11 @@ export class IService {
      * @param data - 转账参数
      */
     async transfer(data: TransferDef): Promise<TransferResp> {
+        // TODO: implemented by subclass
+        throw new Error('Implemented by subclass!');
+    }
+
+    async transferWithFee(data: TransferWithFeeDef): Promise<TransferResp> {
         // TODO: implemented by subclass
         throw new Error('Implemented by subclass!');
     }

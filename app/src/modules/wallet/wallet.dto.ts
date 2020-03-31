@@ -78,6 +78,29 @@ export class DespositDto {
     feePriority: FeePriority;
 }
 
+export class TransferWithFeeDto {
+    @ApiProperty({
+        description: '提币目标地址',
+        example: 'address for blockchain'
+    })
+    @IsString()
+    address: string;
+
+    @ApiProperty({
+        description: '待提币金额 - 输入各平台最小单位(Satoshi, Gas)',
+        example: '100000'
+    })
+    @IsString()
+    amount: string;
+
+    @ApiProperty({
+        description: '指定的交易费',
+        example: '100000000'
+    })
+    @IsNumberString()
+    fee: string;
+}
+
 // response
 export type TokenInfo = {
     [key: string]: string;

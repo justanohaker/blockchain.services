@@ -1,4 +1,4 @@
-import { DespositDto } from "../wallet.dto";
+import { DespositDto, TransferWithFeeDto } from "../wallet.dto";
 import { User } from "../../../models/users.model";
 import { Account } from '../../../models/accounts.model'
 import { TxDef, TransferResult } from "./types";
@@ -41,6 +41,7 @@ export interface IChainProvider {
      * @param despositDto 转账参数
      */
     transfer(clientId: string, accountId: string, despositDto: DespositDto): Promise<TransferResult>;
+    transferWithFee(clientId: string, accountId: string, transferWithFeeDto: TransferWithFeeDto): Promise<TransferResult>
 
     /**
      * 添加新的账号信息

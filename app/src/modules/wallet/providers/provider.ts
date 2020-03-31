@@ -18,7 +18,7 @@ import { Serial } from '../../../models/serial.model';
 import { ChainTx, ChainTxIndex } from '../../../models/transactions.model';
 import { PushPlatform, PushEventType } from '../../../modules/pusher/types';
 import { PusherService } from '../../../modules/pusher/pusher.service';
-import { DespositDto } from '../wallet.dto';
+import { DespositDto, TransferWithFeeDto } from '../wallet.dto';
 import { IChainProvider } from './provider.interface';
 import {
     TxDef,
@@ -170,6 +170,94 @@ export class Provider implements IChainProvider, IServiceProvider {
                 address: toAddress,
                 amount,
                 feePriority
+            });
+            if (transferResult == null
+                || !transferResult.success) {
+                // failure
+                const notificationData = {
+                    status: false,
+                    accountId,
+                    address: keyPair.address,
+                    serial,
+                    error: `${transferResult == null ? 'Unimplemented!' : (transferResult.error!.toString())}`
+                };
+                this.pushNotification(clientId, accountId, eventType, notificationData);
+                this.Logger?.log(`transfer(Failure): ${JSON.stringify(notificationData, null, 2)}`)
+                throw new Error(transferResult == null ? 'Unimplemented!' : `${transferResult.error!}`);
+            }
+            // BEGIN: push new transaction created??
+            const notificationData = {
+                status: true,
+                accountId,
+                address: keyPair.address,
+                serial,
+                txId: transferResult.txId!
+            }
+            this.pushNotification(clientId, accountId, eventType, notificationData);
+            // END
+            this.Logger?.log(`transer(Success): ${JSON.stringify(notificationData, null, 2)}`);
+            result.success = true;
+            result.txId = transferResult.txId!;
+        } catch (error) {
+            // failure
+            result.success = false;
+            result.error = `${error}`;
+            const accountRepo = await this.retrieveAccount(clientId, accountId);
+            if (accountRepo) {
+                const notificationData = {
+                    status: false,
+                    accountId,
+                    address: accountRepo.address,
+                    serial,
+                    error: `${error}`,
+                };
+                this.pushNotification(clientId, accountId, eventType, notificationData);
+                this.Logger?.log(`transfer(Exception): ${JSON.stringify(notificationData, null, 2)}`)
+            } else {
+                this.Logger?.log(`transfer(Exception): ${error}`);
+                throw error;
+            }
+        }
+        return result;
+    }
+
+    async transferWithFee(
+        clientId: string,
+        accountId: string,
+        transferWithFeeDto: TransferWithFeeDto
+    ): Promise<TransferResult> {
+        this.Logger?.log(`transfer ${clientId}, ${accountId}, ${JSON.stringify(transferWithFeeDto, null, 2)}`);
+        const eventType = PushEventType.TransactionCreated;
+        const serial = await this.loadAndIncrSerial(clientId, accountId, this.Token);
+        let result: TransferResult = {
+            success: true,
+            serial
+        };
+        const toAddress = transferWithFeeDto.address;
+        const amount = transferWithFeeDto.amount;
+        const fee = transferWithFeeDto.fee;
+        try {
+            if (!await this.AddressValidator(toAddress) ||
+                !await this.exists(clientId, accountId)) {
+                throw new Error('Parameter Error!');
+            }
+            const accountRepo = await this.retrieveAccount(clientId, accountId);
+            const keyPair: AccountKeyPair = {
+                privateKey: await bipHexPrivFromxPriv(
+                    accountRepo.privkey,
+                    this.Token
+                ),
+                wif: await bipWIFFromxPriv(
+                    accountRepo.privkey,
+                    this.Token
+                ),
+                address: accountRepo.address
+            };
+            const transferResult = await this.IService?.transferWithFee({
+                keyPair,
+                address: toAddress,
+                amount,
+                fee
             });
             if (transferResult == null
                 || !transferResult.success) {

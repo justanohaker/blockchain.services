@@ -26,7 +26,8 @@ import {
     TransactionRespDto,
     DespositRespDto,
     TokenInfo,
-    TokenAccount
+    TokenAccount,
+    TransferWithFeeDto
 } from './wallet.dto';
 
 const TEST_MNEMONIC = 'cave syrup rather injury exercise unit army burden matrix horn celery gas border churn wheat';
@@ -221,6 +222,31 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
         return result;
     }
 
+    async transferWithFee(
+        clientId: string,
+        accountId: string,
+        token: Token,
+        transferWithFeeDto: TransferWithFeeDto
+    ): Promise<DespositRespDto> {
+        const result: DespositRespDto = { success: true };
+        try {
+            const provider = this.getProvider(token);
+            const transferResult = await provider.transferWithFee(clientId, accountId, transferWithFeeDto);
+            result.success = transferResult.success;
+            if (transferResult.success) {
+                result.serial = transferResult.serial!;
+                result.txId = transferResult.txId!;
+            } else {
+                result.serial = transferResult.serial!;
+                result.error = transferResult.error!
+                result.errorCode = RespErrorCode.BAD_REQUEST;
+            }
+        } catch (error) {
+            throw error;
+        }
+        return result;
+    }
+
     // privates
     getProvider(token: Token): IChainProvider {
         switch (token) {
@@ -256,12 +282,7 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
     }
 
     async addSecretToAccount(user: User): Promise<ChainSecret> {
-        let newSecret: string = null;
-        if (AppConfig.prod) {
-            newSecret = await bipNewMnemonic();
-        } else {
-            newSecret = TEST_MNEMONIC;
-        }
+        const newSecret = await bipNewMnemonic();
         const chainsecretIns = new ChainSecret();
         chainsecretIns.clientId = user.clientId;
         chainsecretIns.accountId = user.accountId;

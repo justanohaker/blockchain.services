@@ -40,6 +40,10 @@ export class NullProvider implements IChainProvider {
         throw new Error('Parameter Error!');
     }
 
+    async transferWithFee(): Promise<TransferResult> {
+        throw new Error('Parameter Error!');
+    }
+
     async onNewAccount(accounts: string[]): Promise<void> {
         // nothing to do;
     }
