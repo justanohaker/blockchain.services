@@ -1,10 +1,16 @@
-import { DespositDto, TransferWithFeeDto } from "../wallet.dto";
+import { DespositDto, TransferWithFeeDto, TransferWithPayedDto } from "../wallet.dto";
 import { User } from "../../../models/users.model";
 import { Account } from '../../../models/accounts.model'
 import { TxDef, TransferResult } from "./types";
+import { AccountKeyPair, FeeRangeDef } from "../../../blockchain/common/types";
 
 // 链相关功能提供者接口
 export interface IChainProvider {
+    /**
+     * 获取交易费区间
+     */
+    getFeeRange(): Promise<FeeRangeDef>;
+
     /**
      * 添加账号
      * @param userRepo 用户信息
@@ -40,8 +46,22 @@ export interface IChainProvider {
      * @param account 账号Id
      * @param despositDto 转账参数
      */
-    transfer(clientId: string, accountId: string, despositDto: DespositDto): Promise<TransferResult>;
-    transferWithFee(clientId: string, accountId: string, transferWithFeeDto: TransferWithFeeDto): Promise<TransferResult>
+    transfer(
+        clientId: string,
+        accountId: string,
+        data: DespositDto
+    ): Promise<TransferResult>;
+    transferWithFee(
+        clientId: string,
+        accountId: string,
+        data: TransferWithFeeDto
+    ): Promise<TransferResult>;
+    transferWithPayed(
+        clientId: string,
+        accountId: string,
+        data: TransferWithPayedDto,
+        payedKeyPair: AccountKeyPair
+    ): Promise<TransferResult>;
 
     /**
      * 添加新的账号信息

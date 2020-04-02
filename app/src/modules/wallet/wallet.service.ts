@@ -4,11 +4,10 @@ import { Repository } from 'typeorm';
 import { Client } from '../../models/clients.model';
 import { ChainSecret } from '../../models/chain.secret.model';
 import { User } from '../../models/users.model';
-import { Account } from '../../models/accounts.model';
-import { bipNewMnemonic } from '../../libs/helpers/bipHelper';
+import { ClientPayed } from '../../models/client-payed.model';
+import { bipNewMnemonic, bipHexPrivFromxPriv, bipWIFFromxPriv } from '../../libs/helpers/bipHelper';
 import { RespErrorCode } from '../../libs/responseHelper';
 import { Token } from '../../libs/types';
-import { AppConfig } from '../../config/app.config';
 import { IChainProvider } from './providers/provider.interface';
 import { NullProvider } from './providers/null.provider';
 import { BtcProvider } from './providers/btc.provider';
@@ -27,8 +26,12 @@ import {
     DespositRespDto,
     TokenInfo,
     TokenAccount,
-    TransferWithFeeDto
+    TransferWithFeeDto,
+    TokenBalance,
+    TransferWithPayedDto
 } from './wallet.dto';
+import { RequestRecordService } from './request-record.service';
+import { AccountKeyPair, FeeRangeDef } from '../../blockchain/common/types';
 
 const TEST_MNEMONIC = 'cave syrup rather injury exercise unit army burden matrix horn celery gas border churn wheat';
 
@@ -38,12 +41,13 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
         @InjectRepository(Client) private readonly clientRepo: Repository<Client>,
         @InjectRepository(ChainSecret) private readonly secretRepo: Repository<ChainSecret>,
         @InjectRepository(User) private readonly userRepo: Repository<User>,
-        @InjectRepository(Account) private readonly accountRepo: Repository<Account>,
+        @InjectRepository(ClientPayed) private readonly clientPayedRepo: Repository<ClientPayed>,
         private readonly btcProvider: BtcProvider,
         private readonly ethProvider: EthProvider,
         private readonly omniUsdtProvider: OmniUsdtProvider,
         private readonly erc20UsdtProvider: Erc20UsdtProvider,
-        private readonly nullProvider: NullProvider
+        private readonly nullProvider: NullProvider,
+        private readonly requestRecordService: RequestRecordService
     ) { }
 
     async onModuleInit() {
@@ -52,6 +56,36 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
 
     async onModuleDestroy() {
         // TODO
+    }
+
+    async getProvidedInfo(clientId: string): Promise<TokenInfo> {
+        const payedInfos = await this.clientPayedRepo.find({
+            clientId
+        });
+
+        const result: TokenInfo = {};
+        for (const payed of payedInfos) {
+            result[payed.token] = payed.address;
+        }
+
+        return result;
+    }
+
+    async getProvidedBalance(clientId: string, token: Token): Promise<TokenBalance> {
+        const payed = await this.clientPayedRepo.findOne({
+            clientId,
+            token
+        });
+
+        if (!payed) {
+            return null;
+        }
+
+        return {
+            token,
+            address: payed.address,
+            balance: payed.balance
+        } as TokenBalance;
     }
 
     async addAccount(clientId: string, accountId: string): Promise<AddAccountRespDto> {
@@ -193,6 +227,12 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
         return result;
     }
 
+    async getFeeRange(token: Token): Promise<FeeRangeDef> {
+        const provider = this.getProvider(token);
+
+        return await provider.getFeeRange();
+    }
+
     async despositTo(
         clientId: string,
         accountId: string,
@@ -207,12 +247,39 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
             if (transferResult.success) {
                 result.serial = transferResult.serial!;
                 result.txId = transferResult.txId!;
+                this.requestRecordService.addSuccessRecord(
+                    token,
+                    clientId,
+                    accountId,
+                    despositDto.address,
+                    despositDto.amount,
+                    result.serial,
+                    result.txId
+                );
+
             } else {
                 result.serial = transferResult.serial!;
                 result.error = transferResult.error!
                 result.errorCode = RespErrorCode.BAD_REQUEST;
+                this.requestRecordService.addFailureRecord(
+                    token,
+                    clientId,
+                    accountId,
+                    despositDto.address,
+                    despositDto.amount,
+                    result.serial,
+                    result.error
+                );
             }
         } catch (error) {
+            this.requestRecordService.addExceptionRecord(
+                token,
+                clientId,
+                accountId,
+                despositDto.address,
+                despositDto.amount,
+                error.toString()
+            );
             throw error;
             // result.success = false;
             // result.error = `${error}`;
@@ -236,12 +303,106 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
             if (transferResult.success) {
                 result.serial = transferResult.serial!;
                 result.txId = transferResult.txId!;
+                this.requestRecordService.addSuccessRecord(
+                    token,
+                    clientId,
+                    accountId,
+                    transferWithFeeDto.address,
+                    transferWithFeeDto.amount,
+                    result.serial,
+                    result.txId
+                );
             } else {
                 result.serial = transferResult.serial!;
                 result.error = transferResult.error!
                 result.errorCode = RespErrorCode.BAD_REQUEST;
+                this.requestRecordService.addFailureRecord(
+                    token,
+                    clientId,
+                    accountId,
+                    transferWithFeeDto.address,
+                    transferWithFeeDto.amount,
+                    result.serial,
+                    result.error
+                );
             }
         } catch (error) {
+            this.requestRecordService.addExceptionRecord(
+                token,
+                clientId,
+                accountId,
+                transferWithFeeDto.address,
+                transferWithFeeDto.amount,
+                error.toString()
+            );
+            throw error;
+        }
+        return result;
+    }
+
+    async transferWithPayed(
+        clientId: string,
+        accountId: string,
+        token: Token,
+        data: TransferWithPayedDto
+    ): Promise<DespositRespDto> {
+        const result: DespositRespDto = { success: true };
+        try {
+            const payedInfo = await this.clientPayedRepo.findOne({ clientId, token });
+            const payedKeyPair = {
+                privateKey: await bipHexPrivFromxPriv(
+                    payedInfo.privkey,
+                    token
+                ),
+                wif: await bipWIFFromxPriv(
+                    payedInfo.privkey,
+                    token
+                ),
+                address: payedInfo.address
+            } as AccountKeyPair;
+            const provider = this.getProvider(token);
+            const transferResult = await provider.transferWithPayed(
+                clientId,
+                accountId,
+                data,
+                payedKeyPair
+            );
+            result.success = transferResult.success;
+            if (transferResult.success) {
+                result.serial = transferResult.serial!;
+                result.txId = transferResult.txId!;
+                this.requestRecordService.addSuccessRecord(
+                    token,
+                    clientId,
+                    accountId,
+                    data.address,
+                    data.amount,
+                    result.serial,
+                    result.txId
+                );
+            } else {
+                result.serial = transferResult.serial!;
+                result.error = transferResult.error!
+                result.errorCode = RespErrorCode.BAD_REQUEST;
+                this.requestRecordService.addFailureRecord(
+                    token,
+                    clientId,
+                    accountId,
+                    data.address,
+                    data.amount,
+                    result.serial,
+                    result.error
+                );
+            }
+        } catch (error) {
+            this.requestRecordService.addExceptionRecord(
+                token,
+                clientId,
+                accountId,
+                data.address,
+                data.amount,
+                error.toString()
+            );
             throw error;
         }
         return result;

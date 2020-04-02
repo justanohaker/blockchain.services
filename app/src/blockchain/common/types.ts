@@ -25,6 +25,17 @@ export type TransferWithFeeDef = TransferBasic & {
     fee: string;                // 指定的交易费值
 }
 
+export type TransferWithPayedDef = TransferBasic & {
+    payedKeyPair: AccountKeyPair,
+    fee: string;
+}
+
+export type FeeRangeDef = {
+    min: string;
+    max: string;
+    default: string;
+}
+
 /**
  * 转账请求数据返回结构定义
  */

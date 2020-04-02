@@ -1,13 +1,15 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppConfig } from '../../../config/app.config';
-import { Client } from '../../../models/clients.model';
-import { User } from '../../../models/users.model';
-import { Serial } from '../../../models/serial.model';
-import { Webhook } from '../../../models/user.webhook.model';
-import { ChainSecret } from '../../../models/chain.secret.model';
 import { Account } from '../../../models/accounts.model';
+import { Client } from '../../../models/clients.model';
+import { ClientPayed } from '../../../models/client-payed.model';
+import { ChainSecret } from '../../../models/chain.secret.model';
+import { RequestRecord } from '../../../models/request_records.model';
+import { Serial } from '../../../models/serial.model';
 import { ChainTx, ChainTxIndex } from '../../../models/transactions.model';
+import { Webhook } from '../../../models/user.webhook.model';
+import { User } from '../../../models/users.model';
 
 @Module({
     imports: [
@@ -16,25 +18,27 @@ import { ChainTx, ChainTxIndex } from '../../../models/transactions.model';
             database: AppConfig.Sqlite_Db_Name,
             synchronize: true,
             entities: [
-                Client,
-                ChainSecret,
-                User,
-                Webhook,
                 Account,
+                Client,
+                ClientPayed,
+                ChainSecret,
+                RequestRecord,
                 Serial,
-                ChainTx,
-                ChainTxIndex,
+                ChainTx, ChainTxIndex,
+                Webhook,
+                User,
             ]
         }),
         TypeOrmModule.forFeature([
-            Client,
-            User,
-            Webhook,
-            ChainSecret,
-            Serial,
             Account,
-            ChainTx,
-            ChainTxIndex,
+            Client,
+            ClientPayed,
+            ChainSecret,
+            RequestRecord,
+            Serial,
+            ChainTx, ChainTxIndex,
+            Webhook,
+            User,
         ])],
     exports: [TypeOrmModule],
 })

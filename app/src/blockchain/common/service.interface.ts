@@ -1,4 +1,4 @@
-import { TransferDef, TransferResp, BalanceResp, TransferWithFeeDef } from './types';
+import { TransferDef, TransferResp, BalanceResp, TransferWithFeeDef, TransferWithPayedDef, FeeRangeDef } from './types';
 import { IServiceProvider } from './service.provider';
 
 const UPDATE_TIMEOUT: number = 2 * 1000;
@@ -56,12 +56,16 @@ export class IService {
      */
     async transfer(data: TransferDef): Promise<TransferResp> {
         // TODO: implemented by subclass
-        throw new Error('Implemented by subclass!');
+        throw new Error('Unimplememted...');
     }
 
     async transferWithFee(data: TransferWithFeeDef): Promise<TransferResp> {
         // TODO: implemented by subclass
-        throw new Error('Implemented by subclass!');
+        throw new Error('Unimplemented...');
+    }
+
+    async transferWithPayed(data: TransferWithPayedDef): Promise<TransferResp> {
+        throw new Error('Unimplemented...');
     }
 
     /**
@@ -71,7 +75,15 @@ export class IService {
      */
     async getBalance(addresses: string[]): Promise<BalanceResp> {
         // TODO: implemented by subclass
-        throw new Error('Implemented by subclasses!');
+        throw new Error('Unimplemented...');
+    }
+
+    /**
+     * 获取一笔交易的交易费区间(Min, Max)，以及推荐值(Default)
+     */
+    async getFeeRange(): Promise<FeeRangeDef> {
+        //TODO: implemented by subclass
+        throw new Error('Unimplemented...');
     }
 
     private _updateBalanceHandler(): void {

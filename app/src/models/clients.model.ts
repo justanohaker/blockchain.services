@@ -12,5 +12,8 @@ export class Client {
     secret: string;
 
     @Column()
+    chainSecret: string;
+
+    @Column()
     enabled: boolean;
 }

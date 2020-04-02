@@ -9,6 +9,7 @@ import { BitcoinTransaction } from '../../../blockchain/common/types';
 import { PusherService } from '../../../modules/pusher/pusher.service';
 import { PushPlatform } from '../../../modules/pusher/types';
 import { Client } from '../../../models/clients.model';
+import { ClientPayed } from '../../../models/client-payed.model';
 import { User } from '../../../models/users.model';
 import { Serial } from '../../../models/serial.model';
 import { Webhook } from '../../../models/user.webhook.model';
@@ -37,6 +38,7 @@ export class BtcProvider extends Provider implements OnApplicationBootstrap {
         @InjectRepository(Serial) public readonly SerialRepo: Repository<Serial>,
         @InjectRepository(ChainTx) public readonly ChainTxRepo: Repository<ChainTx>,
         @InjectRepository(ChainTxIndex) public readonly ChainTxIndexRepo: Repository<ChainTxIndex>,
+        @InjectRepository(ClientPayed) public readonly ClientPayedRepo: Repository<ClientPayed>,
         public readonly PushService: PusherService,
         public readonly IService: BtcService,
     ) {

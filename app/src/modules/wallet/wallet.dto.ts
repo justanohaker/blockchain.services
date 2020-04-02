@@ -14,6 +14,27 @@ export class AddAccountDto {
     accountId: string;
 }
 
+export class OnlyCoinParam {
+    @ApiProperty({
+        description: '区块链平台(Bitcoin, Ethereum)',
+        example: Token.BITCOIN,
+        enum: [
+            Token.BITCOIN,
+            Token.ETHEREUM,
+            Token.OMNI_USDT,
+            Token.ERC20_USDT
+        ]
+    })
+    @IsString()
+    @IsIn([
+        Token.BITCOIN,
+        Token.ETHEREUM,
+        Token.OMNI_USDT,
+        Token.ERC20_USDT
+    ])
+    coin: Token;
+}
+
 export class IdParam {
     @ApiProperty({
         description: '待操作数据的Id值',
@@ -101,6 +122,29 @@ export class TransferWithFeeDto {
     fee: string;
 }
 
+export class TransferWithPayedDto {
+    @ApiProperty({
+        description: '提币目标地址',
+        example: 'address for blockchain'
+    })
+    @IsString()
+    address: string;
+
+    @ApiProperty({
+        description: '待提币金额 - 输入各平台最小单位(Satoshi, Gas)',
+        example: '100000'
+    })
+    @IsString()
+    amount: string;
+
+    @ApiProperty({
+        description: '指定的交易费',
+        example: '100000000'
+    })
+    @IsNumberString()
+    fee: string;
+}
+
 // response
 export type TokenInfo = {
     [key: string]: string;
@@ -109,6 +153,12 @@ export type TokenInfo = {
 export type TokenAccount = {
     token: Token;
     account: Account;
+}
+
+export type TokenBalance = {
+    token: Token;
+    address: string;
+    balance: string;
 }
 
 export class AddAccountRespDto extends ResponseBase {

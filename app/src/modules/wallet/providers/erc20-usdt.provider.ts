@@ -9,6 +9,7 @@ import { Erc20UsdtTransaction } from '../../../blockchain/common/types';
 import { PusherService } from '../../../modules/pusher/pusher.service';
 import { PushPlatform } from '../../../modules/pusher/types';
 import { Client } from '../../../models/clients.model';
+import { ClientPayed } from '../../../models/client-payed.model';
 import { User } from '../../../models/users.model';
 import { Serial } from '../../../models/serial.model';
 import { Webhook } from '../../../models/user.webhook.model';
@@ -36,6 +37,7 @@ export class Erc20UsdtProvider extends Provider implements OnApplicationBootstra
         @InjectRepository(Serial) public readonly SerialRepo: Repository<Serial>,
         @InjectRepository(ChainTx) public readonly ChainTxRepo: Repository<ChainTx>,
         @InjectRepository(ChainTxIndex) public readonly ChainTxIndexRepo: Repository<ChainTxIndex>,
+        @InjectRepository(ClientPayed) public readonly ClientPayedRepo: Repository<ClientPayed>,
         public readonly PushService: PusherService,
         public readonly IService: Erc20UsdtService
     ) {
@@ -54,7 +56,7 @@ export class Erc20UsdtProvider extends Provider implements OnApplicationBootstra
     get TxChecker(): TxChecker { return this.txCheck; }
     get TxAddAction(): TxAddAction { return this.txAdd; }
     get FromChainTxAction(): FromChainTxAction { return this.fromChainTx; }
-    get ToChainTxAction(): ToChainTxAction { return this.ToChainTxAction; }
+    get ToChainTxAction(): ToChainTxAction { return this.toChainTx; }
     // END
 
     async onApplicationBootstrap() {

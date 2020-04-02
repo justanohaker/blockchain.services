@@ -4,7 +4,16 @@ import { AuthGuard } from '@nestjs/passport';
 import { respSuccess, respFailure, RespErrorCode } from '../../libs/responseHelper';
 import { AuthClient, AuthClientDto, } from '../../libs/decorators/authclient.decorator';
 import { WalletService } from './wallet.service';
-import { AddAccountDto, IdParam, CoinParam, TxidParam, DespositDto, TransferWithFeeDto } from './wallet.dto';
+import {
+    AddAccountDto,
+    IdParam,
+    CoinParam,
+    TxidParam,
+    DespositDto,
+    TransferWithFeeDto,
+    OnlyCoinParam,
+    TransferWithPayedDto
+} from './wallet.dto';
 
 @ApiTags('钱包')
 @Controller('wallet')
@@ -12,6 +21,61 @@ export class WalletController {
     constructor(
         private readonly walletService: WalletService
     ) { }
+
+    @ApiOperation({
+        summary: '获取代付地址列表',
+        description: ''
+    })
+    @ApiBearerAuth()
+    @UseGuards(AuthGuard('jwt'))
+    @Get('payedInfo')
+    async getPayedAddress(
+        @AuthClient() client: AuthClientDto,
+    ) {
+        try {
+            const result = await this.walletService.getProvidedInfo(client.id);
+            return respSuccess({
+                addresses: result
+            });
+        } catch (error) {
+            return respFailure(
+                RespErrorCode.INTERNAL_SERVER_ERROR,
+                `${error}`
+            );
+        }
+    }
+
+    @ApiOperation({
+        summary: '获取代付地址余额信息',
+        description: ''
+    })
+    @ApiBearerAuth()
+    @UseGuards(AuthGuard('jwt'))
+    @Get('payedBalance/:coin')
+    async getPayedBalance(
+        @AuthClient() client: AuthClientDto,
+        @Param() coinParam: OnlyCoinParam
+    ) {
+        try {
+            const tokenBalance = await this.walletService.getProvidedBalance(
+                client.id,
+                coinParam.coin
+            );
+            if (tokenBalance == null) {
+                return respFailure(
+                    RespErrorCode.BAD_REQUEST,
+                    'Parameter Error!'
+                );
+            }
+
+            return respSuccess(tokenBalance);
+        } catch (error) {
+            return respFailure(
+                RespErrorCode.INTERNAL_SERVER_ERROR,
+                `${error}`
+            );
+        }
+    }
 
     @ApiOperation({
         summary: '添加账号',
@@ -236,6 +300,59 @@ export class WalletController {
                 RespErrorCode.INTERNAL_SERVER_ERROR,
                 `${error}`
             );
+        }
+    }
+
+    @ApiOperation({})
+    @Get('feeRange/:coin')
+    async getFeeRange(
+        @Param() param: OnlyCoinParam
+    ) {
+        try {
+            const result = await this.walletService.getFeeRange(param.coin);
+            return respSuccess(result);
+        } catch (error) {
+            return respFailure(
+                RespErrorCode.INTERNAL_SERVER_ERROR,
+                `${error}`
+            );
+        }
+    }
+
+    @ApiOperation({})
+    @ApiBearerAuth()
+    @UseGuards(AuthGuard('jwt'))
+    @Post('transferWithPayed/:coin/:id')
+    @HttpCode(HttpStatus.OK)
+    async transferWithPayed(
+        @AuthClient() client: AuthClientDto,
+        @Param() coinParam: CoinParam,
+        @Body() transferDto: TransferWithPayedDto
+    ) {
+        try {
+            const result = await this.walletService.transferWithPayed(
+                client.id,
+                coinParam.id,
+                coinParam.coin,
+                transferDto
+            );
+            if (result.success) {
+                return respSuccess({
+                    status: true,
+                    serial: result.serial!,
+                    txId: result.txId!
+                });
+            }
+            return respSuccess({
+                status: false,
+                serial: result.serial!,
+                error: result.error!
+            });
+        } catch (error) {
+            return respFailure(
+                RespErrorCode.INTERNAL_SERVER_ERROR,
+                `${error}`
+            )
         }
     }
 

@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { IService } from '../../../blockchain/common/service.interface';
-import { Transaction, BalanceDef, AccountKeyPair } from '../../../blockchain/common/types';
+import { Transaction, BalanceDef, AccountKeyPair, FeeRangeDef } from '../../../blockchain/common/types';
 import { IServiceProvider } from '../../../blockchain/common/service.provider';
 import {
     bipPrivpubFromMnemonic,
@@ -11,6 +11,7 @@ import {
 } from '../../../libs/helpers/bipHelper';
 import { Token, TransactionDirection } from '../../../libs/types';
 import { Client } from '../../../models/clients.model';
+import { ClientPayed } from '../../../models/client-payed.model';
 import { User } from '../../../models/users.model';
 import { Webhook } from '../../../models/user.webhook.model';
 import { Account } from '../../../models/accounts.model';
@@ -18,7 +19,7 @@ import { Serial } from '../../../models/serial.model';
 import { ChainTx, ChainTxIndex } from '../../../models/transactions.model';
 import { PushPlatform, PushEventType } from '../../../modules/pusher/types';
 import { PusherService } from '../../../modules/pusher/pusher.service';
-import { DespositDto, TransferWithFeeDto } from '../wallet.dto';
+import { DespositDto, TransferWithFeeDto, TransferWithPayedDto } from '../wallet.dto';
 import { IChainProvider } from './provider.interface';
 import {
     TxDef,
@@ -60,6 +61,7 @@ export class Provider implements IChainProvider, IServiceProvider {
     protected readonly WebHookRepo: Repository<Webhook>;
     protected readonly ChainTxRepo: Repository<ChainTx>;
     protected readonly ChainTxIndexRepo: Repository<ChainTxIndex>;
+    protected readonly ClientPayedRepo: Repository<ClientPayed>;
     // END
     // END 
     constructor() { }
@@ -133,6 +135,10 @@ export class Provider implements IChainProvider, IServiceProvider {
         return await this.FromChainTxAction(repo);
     }
 
+    async getFeeRange(): Promise<FeeRangeDef> {
+        return await this.IService?.getFeeRange();
+    }
+
     async transfer(
         clientId: string,
         accountId: string,
@@ -195,7 +201,7 @@ export class Provider implements IChainProvider, IServiceProvider {
             }
             this.pushNotification(clientId, accountId, eventType, notificationData);
             // END
-            this.Logger?.log(`transer(Success): ${JSON.stringify(notificationData, null, 2)}`);
+            this.Logger?.log(`transfer(Success): ${JSON.stringify(notificationData, null, 2)}`);
             result.success = true;
             result.txId = transferResult.txId!;
         } catch (error) {
@@ -226,7 +232,7 @@ export class Provider implements IChainProvider, IServiceProvider {
         accountId: string,
         transferWithFeeDto: TransferWithFeeDto
     ): Promise<TransferResult> {
-        this.Logger?.log(`transfer ${clientId}, ${accountId}, ${JSON.stringify(transferWithFeeDto, null, 2)}`);
+        this.Logger?.log(`transferWithFee ${clientId}, ${accountId}, ${JSON.stringify(transferWithFeeDto, null, 2)}`);
         const eventType = PushEventType.TransactionCreated;
         const serial = await this.loadAndIncrSerial(clientId, accountId, this.Token);
         let result: TransferResult = {
@@ -270,7 +276,7 @@ export class Provider implements IChainProvider, IServiceProvider {
                     error: `${transferResult == null ? 'Unimplemented!' : (transferResult.error!.toString())}`
                 };
                 this.pushNotification(clientId, accountId, eventType, notificationData);
-                this.Logger?.log(`transfer(Failure): ${JSON.stringify(notificationData, null, 2)}`)
+                this.Logger?.log(`transferWithFee(Failure): ${JSON.stringify(notificationData, null, 2)}`)
                 throw new Error(transferResult == null ? 'Unimplemented!' : `${transferResult.error!}`);
             }
             // BEGIN: push new transaction created??
@@ -283,7 +289,7 @@ export class Provider implements IChainProvider, IServiceProvider {
             }
             this.pushNotification(clientId, accountId, eventType, notificationData);
             // END
-            this.Logger?.log(`transer(Success): ${JSON.stringify(notificationData, null, 2)}`);
+            this.Logger?.log(`transferWithFee(Success): ${JSON.stringify(notificationData, null, 2)}`);
             result.success = true;
             result.txId = transferResult.txId!;
         } catch (error) {
@@ -300,9 +306,99 @@ export class Provider implements IChainProvider, IServiceProvider {
                     error: `${error}`,
                 };
                 this.pushNotification(clientId, accountId, eventType, notificationData);
-                this.Logger?.log(`transfer(Exception): ${JSON.stringify(notificationData, null, 2)}`)
+                this.Logger?.log(`transferWithFee(Exception): ${JSON.stringify(notificationData, null, 2)}`)
             } else {
-                this.Logger?.log(`transfer(Exception): ${error}`);
+                this.Logger?.log(`transferWithFee(Exception): ${error}`);
+                throw error;
+            }
+        }
+        return result;
+    }
+
+    async transferWithPayed(
+        clientId: string,
+        accountId: string,
+        data: TransferWithPayedDto,
+        payedKeyPair: AccountKeyPair
+    ): Promise<TransferResult> {
+        this.Logger?.log(`transferWithPayed ${clientId}, ${accountId}, ${JSON.stringify(data, null, 2)}, ${JSON.stringify(payedKeyPair, null, 2)}`);
+        const eventType = PushEventType.TransactionCreated;
+        const serial = await this.loadAndIncrSerial(clientId, accountId, this.Token);
+        let result: TransferResult = {
+            success: true,
+            serial
+        };
+        const toAddress = data.address;
+        const amount = data.amount;
+        const fee = data.fee;
+        try {
+            if (!await this.AddressValidator(toAddress) ||
+                !await this.exists(clientId, accountId)) {
+                throw new Error('Parameter Error!');
+            }
+            const accountRepo = await this.retrieveAccount(clientId, accountId);
+            const keyPair: AccountKeyPair = {
+                privateKey: await bipHexPrivFromxPriv(
+                    accountRepo.privkey,
+                    this.Token
+                ),
+                wif: await bipWIFFromxPriv(
+                    accountRepo.privkey,
+                    this.Token
+                ),
+                address: accountRepo.address
+            };
+            const transferResult = await this.IService?.transferWithPayed({
+                keyPair,
+                address: toAddress,
+                amount,
+                fee,
+                payedKeyPair
+            });
+            if (transferResult == null
+                || !transferResult.success) {
+                // failure
+                const notificationData = {
+                    status: false,
+                    accountId,
+                    address: keyPair.address,
+                    serial,
+                    error: `${transferResult == null ? 'Unimplemented!' : (transferResult.error!.toString())}`
+                };
+                this.pushNotification(clientId, accountId, eventType, notificationData);
+                this.Logger?.log(`transferWithPayed(Failure): ${JSON.stringify(notificationData, null, 2)}`)
+                throw new Error(transferResult == null ? 'Unimplemented!' : `${transferResult.error!}`);
+            }
+            // BEGIN: push new transaction created??
+            const notificationData = {
+                status: true,
+                accountId,
+                address: keyPair.address,
+                serial,
+                txId: transferResult.txId!
+            }
+            this.pushNotification(clientId, accountId, eventType, notificationData);
+            // END
+            this.Logger?.log(`transferWithPayed(Success): ${JSON.stringify(notificationData, null, 2)}`);
+            result.success = true;
+            result.txId = transferResult.txId!;
+        } catch (error) {
+            // failure
+            result.success = false;
+            result.error = `${error}`;
+            const accountRepo = await this.retrieveAccount(clientId, accountId);
+            if (accountRepo) {
+                const notificationData = {
+                    status: false,
+                    accountId,
+                    address: accountRepo.address,
+                    serial,
+                    error: `${error}`,
+                };
+                this.pushNotification(clientId, accountId, eventType, notificationData);
+                this.Logger?.log(`transferWithPayed(Exception): ${JSON.stringify(notificationData, null, 2)}`)
+            } else {
+                this.Logger?.log(`transferWithPayed(Exception): ${error}`);
                 throw error;
             }
         }
@@ -330,9 +426,13 @@ export class Provider implements IChainProvider, IServiceProvider {
         const repos = await this.AccountRepo.find({
             token: this.Token
         });
+        const payedes = await this.ClientPayedRepo.find({ token: this.Token });
         const addresses: string[] = [];
         for (const repo of repos) {
             addresses.push(repo.address);
+        }
+        for (const payed of payedes) {
+            addresses.push(payed.address);
         }
         return addresses;
     }
@@ -419,7 +519,20 @@ export class Provider implements IChainProvider, IServiceProvider {
             address,
             token: this.Token
         });
-        if (!accountRepo) { return null; }
+        if (!accountRepo) {
+            // BEGIN: for Payed balance change
+            const payedInfoRepo = await this.ClientPayedRepo.findOne({
+                address,
+                token: this.Token
+            });
+            if (payedInfoRepo) {
+                payedInfoRepo.balance = balance;
+                await this.ClientPayedRepo.save(payedInfoRepo);
+            }
+            // END: for payed balance change
+
+            return null;
+        }
         accountRepo.balance = balance;
         accountRepo = await this.AccountRepo.save(accountRepo);
         return accountRepo;
