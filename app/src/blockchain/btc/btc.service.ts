@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { IService } from '../common/service.interface';
-import { TransferDef, TransferResp, BalanceResp, BitcoinTransaction } from '../common/types';
+import { TransferDef, TransferResp, BalanceResp, BitcoinTransaction, TransferWithFeeDef } from '../common/types';
 import { FeePriority } from 'src/libs/types';
 
 import { Buffer } from 'buffer';
@@ -177,12 +177,12 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
             let feeRate = await this.getFeeRate(data.feePriority);
             let utxos = [];
             for (let unspent of unspents) {
-                let txHex = await client.command('getrawtransaction', unspent.txid);
+                let txhex = await client.command('getrawtransaction', unspent.txid);
                 utxos.push({
                     txid: unspent.txid,
                     vout: unspent.vout,
                     value: new Bignumber(unspent.amount).div(PRECISION).toNumber(),
-                    nonWitnessUtxo: Buffer.from(txHex, 'hex')
+                    nonWitnessUtxo: Buffer.from(txhex, 'hex')
                 });
             }
             let targets = [{
@@ -247,5 +247,67 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
         }
         console.log('feeRate ==>', feeRate)
         return feeRate;
+    }
+
+    async transferWithFee(data: TransferWithFeeDef): Promise<TransferResp> {
+        try {
+            let unspents = await client.command('listunspent', 0, 99999999, [data.keyPair.address]);
+            // console.log('listunspent ==>', unspents)
+            if (unspents.length === 0) {
+                throw new Error('listunspent is empty');
+            }
+
+            // 组织psbt数据
+            let psbt = new Psbt({ network: networks.testnet });
+            let fee = new Bignumber(data.fee);
+            let total = new Bignumber(0);
+            let amount = new Bignumber(data.amount);
+            let trans = amount.plus(fee);
+            let rest = new Bignumber(0);
+            for (let unspent of unspents) {
+                let txhex = await client.command('getrawtransaction', unspent.txid);
+                psbt.addInput({
+                    hash: unspent.txid,
+                    index: unspent.vout,
+                    nonWitnessUtxo: Buffer.from(txhex, 'hex')
+                });
+
+                total = total.plus(new Bignumber(unspent.amount).div(PRECISION));
+                if (total.gte(trans)) {
+                    rest = total.minus(trans);
+                    break;
+                }
+            }
+            if (total.lt(trans)) {
+                throw new Error('not enough balance');
+            }
+
+            psbt.addOutput({
+                address: data.address,
+                value: amount.toNumber()
+            });
+            if (rest.times(PRECISION).toNumber() > 0) {
+                psbt.addOutput({
+                    address: data.keyPair.address,
+                    value: rest.toNumber()
+                });
+            }
+
+            // 签名psbt
+            const ecpair = ECPair.fromPrivateKey(Buffer.from(data.keyPair.privateKey, 'hex'), { network: networks.testnet });
+            psbt.signAllInputs(ecpair);
+            psbt.validateSignaturesOfAllInputs();
+            psbt.finalizeAllInputs();
+            const psbthash = psbt.extractTransaction().toHex();
+            // console.log('psbthash ==>', psbthash)
+
+            let txid = await client.command('sendrawtransaction', psbthash);
+            console.log('sendrawtransaction ==>', txid)
+
+            return { success: true, txId: "txid" };
+        } catch (error) {
+            console.log(error)
+            return { success: false, error };
+        }
     }
 }
