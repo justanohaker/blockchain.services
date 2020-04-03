@@ -1,24 +1,25 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { IService } from '../../common/service.interface';
-import { TransferDef, TransferResp, BalanceResp, OmniUsdtTransactin, TransferWithFeeDef } from '../../../blockchain/common/types';
+import { TransferDef, TransferResp, BalanceResp, OmniUsdtTransactin, TransferWithFeeDef, TransferWithPayedDef, FeeRangeDef } from '../../../blockchain/common/types';
+import { FeePriority } from 'src/libs/types';
 import Bignumber from 'bignumber.js';
 import coinSelect = require('coinselect');
 import Axios from 'axios';
 
+import { AppConfig } from '../../../config/app.config';
 import Client = require('bitcoin-core');
-import { FeePriority } from 'src/libs/types';
 const client = new Client({
-    host: '111.231.105.174',
+    host: AppConfig.mainnet ? '120.53.0.176' : '111.231.105.174',
     port: 8332,
-    network: 'regtest',
+    network: AppConfig.mainnet ? 'mainnet' : 'regtest',
     username: 'entanmo_bitcoin',
     password: 'Entanmo2018',
     version: '',
     agentOptions: {},
     wallet: 'sy'
 });
+const PROPERTY = AppConfig.mainnet ? 31 : 2; //propertyid  1:OMNI,2:TOMNI,31:USDT
 const PRECISION = 1e-8;
-const PROPERTY = 2; //propertyid  1:OMNI,2:TOMNI,31:USDT
 
 @Injectable()
 export class OmniUsdtService extends IService implements OnModuleInit, OnModuleDestroy {
@@ -216,6 +217,14 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
 
     async transferWithFee(data: TransferWithFeeDef): Promise<TransferResp> {
         try {
+            let balance = await client.command('omni_getbalance', data.keyPair.address, PROPERTY);
+            // console.log('omni_getbalance ==>', balance)
+            let amount = new Bignumber(data.amount).times(PRECISION).toFixed(8);
+            // console.log('amount ==>', amount);
+            if (balance.balance < amount) {
+                throw new Error('not enough balance');
+            }
+
             let unspents = await client.command('listunspent', 0, 99999999, [data.keyPair.address]);
             console.log('listunspent ==>', unspents)
             if (unspents.length === 0) {
@@ -232,7 +241,7 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
                 });
             }
 
-            let amount = new Bignumber(data.amount).times(PRECISION).toFixed(8);
+            // let amount = new Bignumber(data.amount).times(PRECISION).toFixed(8);
             // console.log('amount ==>', amount);
 
             let payload = await client.command('omni_createpayload_simplesend', PROPERTY, amount);
@@ -265,5 +274,67 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
             console.log(error)
             return { success: false, error };
         }
+    }
+
+    async transferWithPayed(data: TransferWithPayedDef): Promise<TransferResp> {
+        try {
+            let balance = await client.command('omni_getbalance', data.keyPair.address, PROPERTY);
+            // console.log('omni_getbalance ==>', balance)
+            let amount = new Bignumber(data.amount).times(PRECISION).toFixed(8);
+            // console.log('amount ==>', amount);
+            if (balance.balance < amount) {
+                throw new Error('not enough balance');
+            }
+
+            let unspents = await client.command('listunspent', 0, 99999999, [data.payedKeyPair.address, data.keyPair.address]);
+            console.log('listunspent ==>', unspents)
+            if (unspents.length === 0) {
+                throw new Error('listunspent is empty');
+            }
+
+            let utxos = [];
+            for (let unspent of unspents) {
+                utxos.push({
+                    txid: unspent.txid,
+                    vout: unspent.vout,
+                    value: unspent.amount,
+                    scriptPubKey: unspent.scriptPubKey,
+                });
+            }
+
+            let payload = await client.command('omni_createpayload_simplesend', PROPERTY, amount);
+            // console.log('omni_createpayload_simplesend ==>', payload);
+
+            let txhash = await client.command('createrawtransaction', utxos, {});
+            // console.log('createrawtransaction ==>', txhash)
+
+            let rawtx = await client.command('omni_createrawtx_opreturn', txhash, payload);
+            // console.log('omni_createrawtx_opreturn ==>', rawtx);
+
+            let rawtx2 = await client.command('omni_createrawtx_reference', rawtx, data.address);
+            // console.log('omni_createrawtx_reference ==>', rawtx2);
+
+            let fee = new Bignumber(data.fee).times(PRECISION).toNumber();
+            let rawtx3 = await client.command('omni_createrawtx_change', rawtx2, utxos, data.payedKeyPair.address, fee);
+            // console.log('omni_createrawtx_change ==>', rawtx3);
+
+            let txsign = await client.command('signrawtransactionwithkey', rawtx3, [data.payedKeyPair.wif, data.keyPair.wif]);
+            // console.log('signrawtransactionwithkey ==>', txsign)
+
+            // let tx = await client.command('decoderawtransaction', rawtx3, false)
+            // console.log('decoderawtransaction ==>', JSON.stringify(tx))
+
+            let txid = await client.command('sendrawtransaction', txsign.hex);
+            console.log('sendrawtransaction ==>', txid)
+
+            return { success: true, txId: txid };
+        } catch (error) {
+            console.log(error)
+            return { success: false, error };
+        }
+    }
+
+    async getFeeRange(): Promise<FeeRangeDef> {
+        return { min: '200000000', max: '500000000', default: '200000000' };
     }
 }

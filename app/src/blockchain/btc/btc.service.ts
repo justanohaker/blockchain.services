@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { IService } from '../common/service.interface';
-import { TransferDef, TransferResp, BalanceResp, BitcoinTransaction, TransferWithFeeDef } from '../common/types';
+import { TransferDef, TransferResp, BalanceResp, BitcoinTransaction, TransferWithFeeDef, FeeRangeDef, TransferWithPayedDef } from '../common/types';
 import { FeePriority } from 'src/libs/types';
 
 import { Buffer } from 'buffer';
@@ -9,11 +9,12 @@ import Bignumber from 'bignumber.js';
 import coinSelect = require('coinselect');
 import Axios from 'axios';
 
+import { AppConfig } from '../../config/app.config';
 import Client = require('bitcoin-core');
 const client = new Client({
-    host: '111.231.105.174',
+    host: AppConfig.mainnet ? '120.53.0.176' : '111.231.105.174',
     port: 8332,
-    network: 'regtest',
+    network: AppConfig.mainnet ? 'mainnet' : 'regtest',
     username: 'entanmo_bitcoin',
     password: 'Entanmo2018',
     version: '',
@@ -158,7 +159,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
             }
             result.result.push(info);
         }
-        // console.log('getbalance ==>', result)
+        console.log('getbalance ==>', result)
         return result;
     }
 
@@ -193,7 +194,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
             if (!inputs || !outputs) {
                 throw new Error('tansfer data error');
             }
-            
+
             let psbt = new Psbt({ network: networks.testnet });
             inputs.forEach(input =>
                 psbt.addInput({
@@ -310,4 +311,13 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
             return { success: false, error };
         }
     }
+
+    async transferWithPayed(data: TransferWithPayedDef): Promise<TransferResp> {
+        throw new Error('Unimplemented...');
+    }
+
+    async getFeeRange(): Promise<FeeRangeDef> {
+        return { min: '40000', max: '1000000', default: '40000' };
+    }
+
 }
