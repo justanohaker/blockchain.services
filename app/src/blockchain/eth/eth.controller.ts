@@ -34,13 +34,13 @@ export class EthController {
                 wif: '',
                 address: "0xC4100A97dD815626E57A13886650060F914cc782"
             },
-            address: "0x0Dd0C25B0a56564327aE70f0aeD805024084c35F",
-            amount: "1000000000",
+            address: "0xC64f9F5C2fBe9153ED9B414Ebc6a5A47e989c31C",
+            amount: "100000000000000",
             feePriority: FeePriority.NORMAL
         });
         this.logger.log(`test transfer {${JSON.stringify(res4)}}`);
 
-        // let res5 = await this.ethService.transfer({
+        // let res5 = await this.ethService.transferWithFee({
         //     keyPair: {
         //         privateKey: "0x0bbbd483ad36f06425c359ac2f602d3c527131b1bb066cb342f9cacdf3e4532c",
         //         wif: '',
@@ -48,54 +48,12 @@ export class EthController {
         //     },
         //     address: "0xC4100A97dD815626E57A13886650060F914cc782",
         //     amount: "1000000",
-        //     feePriority: FeePriority.NORMAL
+        //     fee: "60000000000"
         // });
         // this.logger.log(`test transfer {${JSON.stringify(res5)}}`);
 
         return respSuccess(res);
 
     }
-    /*  @Post('balance')
-      async balance(@Body() body: balanceDto) {
-          this.logger.log(`balance {${JSON.stringify(body)}}`);
-          // try {
-              const res = await this.ethService.balance(body.address);
-              return respSuccess(res);
-          // } catch (error) {
-          //     this.logger.log(error); 
-          //     return respFailure(
-          //         RespErrorCode.INTERNAL_SERVER_ERROR,
-          //         `${error}`
-          //     );
-          // }
-      }
-      @Post('sendTransaction')
-      async sendTransaction(@Body() body: TransferDef) {
-          this.logger.log(`sendTransaction {${JSON.stringify(body)}}`);
-          // try {
-              const res = await this.ethService.transfer(body);
-              return respSuccess(res);
-          // } catch (error) {
-          //     this.logger.log(error); 
-          //     return respFailure(
-          //         RespErrorCode.INTERNAL_SERVER_ERROR,
-          //         `${error}`
-          //     );
-          // }
-      }
-      @Post('getTransaction')
-      async getTransaction(@Body() body: transactionDto) {
-          this.logger.log(`sendTransaction {${JSON.stringify(body)}}`);
-          // try {
-              const res = await this.ethService.getTransaction(body);
-              return respSuccess(res);
-          // } catch (error) {
-          //     this.logger.log(error); 
-          //     return respFailure(
-          //         RespErrorCode.INTERNAL_SERVER_ERROR,
-          //         `${error}`
-          //     );
-          // }
-      }
-  */
+  
 }

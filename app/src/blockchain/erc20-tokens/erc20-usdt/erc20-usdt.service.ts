@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnApplicationBootstrap, OnModuleInit } from '@nestjs/common';
-import { BalanceDef, BalanceResp, TransferDef, TransferResp, Erc20UsdtTransaction } from 'src/blockchain/common/types';
+import {TransferWithFeeDef, BalanceDef, BalanceResp, TransferDef, TransferResp, Erc20UsdtTransaction } from 'src/blockchain/common/types';
 import { IService } from 'src/blockchain/common/service.interface';
 import { FeePriority } from 'src/libs/types'
 import { ethers, utils } from 'ethers';
@@ -99,6 +99,16 @@ export class Erc20UsdtService extends IService implements OnApplicationBootstrap
         let wallet = new ethers.Wallet(param.keyPair.privateKey, this.httpProvider);
         let contractWithSigner = this.contract.connect(wallet);
         let tx = await contractWithSigner.functions.transfer(param.address, ethers.utils.bigNumberify(param.amount));
+        return { success: true, txId: tx.hash }
+    }
+   
+    async transferWithFee(param: TransferWithFeeDef): Promise<TransferResp> {
+        let wallet = new ethers.Wallet(param.keyPair.privateKey, this.httpProvider);
+        let contractWithSigner = this.contract.connect(wallet);
+        let overrides = {
+            gasPrice: utils.bigNumberify(param.fee),
+        };
+        let tx = await contractWithSigner.functions.transfer(param.address, ethers.utils.bigNumberify(param.amount),overrides);
         return { success: true, txId: tx.hash }
     }
 }
