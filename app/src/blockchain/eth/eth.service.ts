@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnApplicationBootstrap, OnModuleInit } from '@nestjs/common';
 import { NewWalletDto, sendCoinDto, balanceDto, transactionDto } from './eth.dto';
-import { TransferWithFeeDef,BalanceDef, BalanceResp, TransferDef, TransferResp, EthereumTransaction, Erc20UsdtTransaction } from '../common/types';
+import { FeeRangeDef,TransferWithFeeDef,BalanceDef, BalanceResp, TransferDef, TransferResp, EthereumTransaction, Erc20UsdtTransaction } from '../common/types';
 import { IService } from '../common/service.interface';
 import { FeePriority } from '../../libs/types'
 import { ethers, utils } from 'ethers';
@@ -151,6 +151,14 @@ export class EthService extends IService implements OnApplicationBootstrap, OnMo
             }
         )
         return { success: true, txId: tx.hash }
+    }
+      /***
+     * 1 ether = 10的18次方wei
+     * 1 Gwei = 10的9次方wei
+     * Range最小5Gwei 最大50Gwei
+     * */
+    async getFeeRange(): Promise<FeeRangeDef> {
+        return { min: '5000000000', max: '50000000000', default: '15000000000' };
     }
 }
 

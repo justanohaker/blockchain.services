@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnApplicationBootstrap, OnModuleInit } from '@nestjs/common';
-import {TransferWithFeeDef, BalanceDef, BalanceResp, TransferDef, TransferResp, Erc20UsdtTransaction } from 'src/blockchain/common/types';
+import {FeeRangeDef,TransferWithFeeDef, BalanceDef, BalanceResp, TransferDef, TransferResp, Erc20UsdtTransaction } from 'src/blockchain/common/types';
 import { IService } from 'src/blockchain/common/service.interface';
 import { FeePriority } from 'src/libs/types'
 import { ethers, utils } from 'ethers';
@@ -110,6 +110,9 @@ export class Erc20UsdtService extends IService implements OnApplicationBootstrap
         };
         let tx = await contractWithSigner.functions.transfer(param.address, ethers.utils.bigNumberify(param.amount),overrides);
         return { success: true, txId: tx.hash }
+    }
+    async getFeeRange(): Promise<FeeRangeDef> {
+        return { min: '5000000000', max: '50000000000', default: '15000000000' };
     }
 }
 function getFee(param) {
