@@ -22,6 +22,7 @@ export type TransferDef = TransferBasic & {
 }
 
 export type TransferWithFeeDef = TransferBasic & {
+    payedKeyPair: AccountKeyPair;
     fee: string;                // 指定的交易费值
 }
 
@@ -41,7 +42,8 @@ export type FeeRangeDef = {
  */
 export type PrepareTransferDef = {
     keyPair: AccountKeyPair;            // 代付账号信息
-    address: string;                    // 实际转账地址
+    senderKeyPair: AccountKeyPair;      // 转出账号信息
+    address: string;                    // 转入地址
     amount: string;                     // 实际转账金额
     fee: string;                        // 实际转账指定交易费
 }

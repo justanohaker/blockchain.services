@@ -217,6 +217,7 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
                 const task = tasks[0];
                 const { clientId, accountId, amount, fee, preTxId, preTxConfirmed, } = task;
                 const sender = await this.retrieveAccount(clientId, accountId);
+                const payAccount = await this.ClientPayedRepo.findOne({ clientId, token: this.Token });
                 // this.Logger.log(`transferSched[init]-${JSON.stringify(task)},${sender.address}`);
                 if (preTxId == null) {
                     // TODO
@@ -224,12 +225,12 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
                     if (await this.needPrepareTransferAction(sender.address, amount, fee)) {
                         try {
                             this.Logger.log(`transferSched[postTransfer1]-${JSON.stringify(sender)},${JSON.stringify(task)}`);
-                            await this.postTransfer(sender, task);
+                            await this.postTransfer(payAccount, sender, task);
                             tasks.splice(0, 1);
                         } catch (error) { }
                     } else {
                         try {
-                            const payAccount = await this.ClientPayedRepo.findOne({ clientId, token: this.Token });
+
                             // this.Logger.log(`transferSched[prepareTransfer]-${JSON.stringify(payAccount)},${JSON.stringify(sender)},${JSON.stringify(task)}`)
                             const txId = await this.prepareTransfer(payAccount, sender, task);
                             if (txId) {
@@ -244,7 +245,7 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
                     // TODO
                     try {
                         // this.Logger.log(`transferSched[postTransfer2]-${JSON.stringify(sender)},${JSON.stringify(task)}`);
-                        await this.postTransfer(sender, task);
+                        await this.postTransfer(payAccount, sender, task);
                         tasks.splice(0, 1);
                     } catch (error) { }
                     continue;
@@ -263,14 +264,21 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
         return result;
     }
 
-    private async postTransfer(account: Account, task: TransferInternalTask): Promise<void> {
+    private async postTransfer(payAccount: ClientPayed, account: Account, task: TransferInternalTask): Promise<void> {
         const { accountId, address, amount, fee, businessId, callbackURI } = task;
+        const payedKeyPair = {
+            privateKey: await bipHexPrivFromxPriv(payAccount.privkey, this.Token),
+            wif: await bipWIFFromxPriv(payAccount.privkey, this.Token),
+            address: payAccount.address,
+        } as AccountKeyPair;
+        const senderKeyPair = {
+            privateKey: await bipHexPrivFromxPriv(account.privkey, this.Token),
+            wif: await bipWIFFromxPriv(account.privkey, this.Token),
+            address: account.address
+        } as AccountKeyPair;
         const transfer = await this.IService?.transferWithFee({
-            keyPair: {
-                privateKey: await bipHexPrivFromxPriv(account.privkey, this.Token),
-                wif: await bipWIFFromxPriv(account.privkey, this.Token),
-                address: account.address
-            },
+            payedKeyPair,
+            keyPair: senderKeyPair,
             address,
             amount,
             fee
@@ -308,16 +316,22 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
     }
 
     private async prepareTransfer(payAccount: ClientPayed, account: Account, task: TransferInternalTask): Promise<string> {
-        const { amount, fee } = task;
+        const { address, amount, fee } = task;
         const payedKeyPair = {
             privateKey: await bipHexPrivFromxPriv(payAccount.privkey, this.Token),
             wif: await bipWIFFromxPriv(payAccount.privkey, this.Token),
-            address: payAccount.address
+            address: payAccount.address,
+        } as AccountKeyPair;
+        const senderKeyPair = {
+            privateKey: await bipHexPrivFromxPriv(account.privkey, this.Token),
+            wif: await bipWIFFromxPriv(account.privkey, this.Token),
+            address: account.address,
         } as AccountKeyPair;
         try {
             const transfer = await this.IService?.prepareTransfer({
                 keyPair: payedKeyPair,
-                address: account.address,
+                senderKeyPair,
+                address,
                 amount,
                 fee
             });
