@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { IChainProvider } from './provider.interface';
 import { User } from '../../../models/users.model';
 import { Account } from '../../../models/accounts.model';
-import { TransferResult } from './types';
+import { TransferResult, TransferWithCallbackResult } from './types';
 import { FeeRangeDef } from 'src/blockchain/common/types';
 
 @Injectable()
@@ -41,15 +41,11 @@ export class NullProvider implements IChainProvider {
         throw new Error('Unsupported.');
     }
 
-    async transfer(): Promise<TransferResult> {
+    async deposit(): Promise<TransferResult> {
         throw new Error('Unsupported.');
     }
 
-    async transferWithFee(): Promise<TransferResult> {
-        throw new Error('Unsupported.');
-    }
-
-    async transferWithPayed(): Promise<TransferResult> {
+    async transfer(): Promise<TransferWithCallbackResult> {
         throw new Error('Unsupported.');
     }
 

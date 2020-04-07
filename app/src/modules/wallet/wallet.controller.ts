@@ -10,10 +10,10 @@ import {
     CoinParam,
     TxidParam,
     DespositDto,
-    TransferWithFeeDto,
     OnlyCoinParam,
-    TransferWithPayedDto
+    TransferDto
 } from './wallet.dto';
+import { ClientIP, ClientIPDto } from 'src/libs/decorators/ip.decorator';
 
 @ApiTags('钱包')
 @Controller('wallet')
@@ -303,7 +303,10 @@ export class WalletController {
         }
     }
 
-    @ApiOperation({})
+    @ApiOperation({
+        summary: '获取指定Token的交易费区间以及推荐值',
+        description: ''
+    })
     @Get('feeRange/:coin')
     async getFeeRange(
         @Param() param: OnlyCoinParam
@@ -319,43 +322,6 @@ export class WalletController {
         }
     }
 
-    @ApiOperation({})
-    @ApiBearerAuth()
-    @UseGuards(AuthGuard('jwt'))
-    @Post('transferWithPayed/:coin/:id')
-    @HttpCode(HttpStatus.OK)
-    async transferWithPayed(
-        @AuthClient() client: AuthClientDto,
-        @Param() coinParam: CoinParam,
-        @Body() transferDto: TransferWithPayedDto
-    ) {
-        try {
-            const result = await this.walletService.transferWithPayed(
-                client.id,
-                coinParam.id,
-                coinParam.coin,
-                transferDto
-            );
-            if (result.success) {
-                return respSuccess({
-                    status: true,
-                    serial: result.serial!,
-                    txId: result.txId!
-                });
-            }
-            return respSuccess({
-                status: false,
-                serial: result.serial!,
-                error: result.error!
-            });
-        } catch (error) {
-            return respFailure(
-                RespErrorCode.INTERNAL_SERVER_ERROR,
-                `${error}`
-            )
-        }
-    }
-
     @ApiOperation({
         summary: '提币',
         description: '用户使用指定的账号在指定的区块链平台上进行提币操作'
@@ -365,29 +331,22 @@ export class WalletController {
     @Post('desposit/:coin/:id')
     @HttpCode(HttpStatus.OK)
     async desposit(
+        @ClientIP() ip: ClientIPDto,
         @AuthClient() client: AuthClientDto,
-        @Param() coinParam: CoinParam,
-        @Body() despositDto: DespositDto
+        @Param() param: CoinParam,
+        @Body() body: DespositDto
     ) {
         try {
-            const result = await this.walletService.despositTo(
-                client.id,
-                coinParam.id,
-                coinParam.coin,
-                despositDto
-            );
+            const { id: clientId } = client;
+            const { id: accountId, coin: token } = param;
+            const result = await this.walletService.deposit(ip, clientId, accountId, token, body);
             if (result.success) {
-                return respSuccess({
-                    status: true,
-                    serial: result.serial!,
-                    txId: result.txId!
-                });
+                return respSuccess({});
             }
-            return respSuccess({
-                status: false,
-                serial: result.serial!,
-                error: result.error!
-            });
+            return respFailure(
+                result.errorCode,
+                result.error
+            );
         } catch (error) {
             return respFailure(
                 RespErrorCode.INTERNAL_SERVER_ERROR,
@@ -396,38 +355,30 @@ export class WalletController {
         }
     }
 
-    @ApiOperation({
-        summary: '指定交易费转账',
-        description: '用户使用指定的账号在指定的区块链平台上进行转账操作'
-    })
+    @ApiOperation({})
     @ApiBearerAuth()
     @UseGuards(AuthGuard('jwt'))
-    @Post('transferWithFee/:coin/:id')
+    @Post('transfer/:coin/:id')
     @HttpCode(HttpStatus.OK)
-    async transferWithFee(
+    async transferWithCallback(
+        @ClientIP() ip: ClientIPDto,
         @AuthClient() client: AuthClientDto,
-        @Param() coinParam: CoinParam,
-        @Body() transferWithFeeDto: TransferWithFeeDto
+        @Param() param: CoinParam,
+        @Body() body: TransferDto
     ) {
         try {
-            const result = await this.walletService.transferWithFee(
-                client.id,
-                coinParam.id,
-                coinParam.coin,
-                transferWithFeeDto
-            );
+            const { id: clientId } = client;
+            const { id: accountId, coin: token } = param;
+            const result = await this.walletService.transfer(ip, clientId, accountId, token, body);
             if (result.success) {
-                return respSuccess({
-                    status: true,
-                    serial: result.serial!,
-                    txId: result.txId!
-                });
+                // success
+                return respSuccess({});
             }
-            return respSuccess({
-                status: false,
-                serial: result.serial!,
-                error: result.error!
-            });
+            // failure
+            return respFailure(
+                result.errorCode,
+                result.error
+            );
         } catch (error) {
             return respFailure(
                 RespErrorCode.INTERNAL_SERVER_ERROR,

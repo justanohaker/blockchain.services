@@ -37,6 +37,16 @@ export type FeeRangeDef = {
 }
 
 /**
+ * 代付交易费与不足转账金额数据定义
+ */
+export type PrepareTransferDef = {
+    keyPair: AccountKeyPair;            // 代付账号信息
+    address: string;                    // 实际转账地址
+    amount: string;                     // 实际转账金额
+    fee: string;                        // 实际转账指定交易费
+}
+
+/**
  * 转账请求数据返回结构定义
  */
 export type TransferResp = {
@@ -131,3 +141,8 @@ export type Transaction = BitcoinTransaction
     | EthereumTransaction
     | Erc20UsdtTransaction
     | OmniUsdtTransactin;
+
+
+export type BlockDef = {
+    height: number;
+}

@@ -312,10 +312,6 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
         }
     }
 
-    async transferWithPayed(data: TransferWithPayedDef): Promise<TransferResp> {
-        throw new Error('Unimplemented...');
-    }
-
     async getFeeRange(): Promise<FeeRangeDef> {
         return { min: '40000', max: '1000000', default: '40000' };
     }

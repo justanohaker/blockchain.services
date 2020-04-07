@@ -1,4 +1,4 @@
-import { Transaction, BalanceDef } from "./types";
+import { Transaction, BalanceDef, BlockDef } from "./types";
 
 export interface IServiceProvider {
     /**
@@ -20,4 +20,11 @@ export interface IServiceProvider {
      * @param tr - 一个或多个新交易的结构
      */
     onNewTransaction(tr: Transaction[]): Promise<void>;
+
+    /**
+     * @note 回调
+     * 当监控程序监控到新的区块时调用此回调
+     * @param block - 一个区块的结构
+     */
+    onNewBlock(block: BlockDef): Promise<void>;
 }

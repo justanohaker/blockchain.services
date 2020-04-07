@@ -10,86 +10,81 @@ export class RequestRecordService {
         @InjectRepository(RequestRecord) private readonly requestRecordRepo: Repository<RequestRecord>
     ) { }
 
-    async addSuccessRecord(
+    async addRequestRecordWithFee(
+        ip: string,
+        route: string,
         token: Token,
-        client: string,
-        account: string,
-        recipient: string,
+        clientId: string,
+        accountId: string,
+        recipientId: string,
         amount: string,
-        serial: number,
-        txId: string
+        fee: string,
+        businessId: string,
+        callbackURI: string
     ) {
         const recordIns = new RequestRecord();
-        recordIns.client = client;
-        recordIns.account = account;
-        recordIns.receipentId = recipient;
+        recordIns.ip = ip;
+        recordIns.route = route;
+        recordIns.clientId = clientId;
+        recordIns.accountId = accountId;
+        recordIns.recipientId = recipientId;
         recordIns.amount = amount;
+        recordIns.fee = fee;
         recordIns.token = token;
-        recordIns.serial = serial;
         recordIns.timestamp = Date.now();
-        recordIns.txId = txId;
-        recordIns.status = RequestRecordStatus.SUCCESS;
+        recordIns.businessId = businessId;
+        recordIns.callbackURI = callbackURI;
+        recordIns.status = RequestRecordStatus.Init;
 
+        const result = await this.requestRecordRepo.save(recordIns);
+        return result.id;
+    }
+
+    async addRequestRecordWithFeePriority(
+        ip: string,
+        route: string,
+        token: Token,
+        clientId: string,
+        accountId: string,
+        recipientId: string,
+        amount: string,
+        feePriority: string,
+        businessId: string,
+        callbackURI: string,
+    ) {
+        const recordIns = new RequestRecord();
+        recordIns.ip = ip;
+        recordIns.route = route;
+        recordIns.clientId = clientId;
+        recordIns.accountId = accountId;
+        recordIns.recipientId = recipientId;
+        recordIns.amount = amount;
+        recordIns.feePriority = feePriority;
+        recordIns.token = token;
+        recordIns.timestamp = Date.now();
+        recordIns.businessId = businessId;
+        recordIns.callbackURI = callbackURI;
+        recordIns.status = RequestRecordStatus.Init;
+
+        const result = await this.requestRecordRepo.save(recordIns);
+        return result.id;
+    }
+
+    async updateRequestRecordSuccess(
+        rowid: string
+    ) {
+        const recordIns = await this.requestRecordRepo.findOne({ id: rowid });
+        if (!recordIns) { return; }
+        recordIns.status = RequestRecordStatus.Success;
         await this.requestRecordRepo.save(recordIns);
     }
 
-    async addFailureRecord(
-        token: Token,
-        client: string,
-        account: string,
-        recipient: string,
-        amount: string,
-        serial: number,
-        error: string
+    async updateRequestRecordFailure(
+        rowid: string
     ) {
-        const recordIns = new RequestRecord();
-        recordIns.client = client;
-        recordIns.account = account;
-        recordIns.receipentId = recipient;
-        recordIns.amount = amount;
-        recordIns.token = token;
-        recordIns.serial = serial;
-        recordIns.timestamp = Date.now();
-        recordIns.error = error;
-        recordIns.status = RequestRecordStatus.FAILURE;
-
+        const recordIns = await this.requestRecordRepo.findOne({ id: rowid });
+        if (!rowid) { return; }
+        recordIns.status = RequestRecordStatus.Failure;
         await this.requestRecordRepo.save(recordIns);
-    }
-
-    async addExceptionRecord(
-        token: Token,
-        client: string,
-        account: string,
-        recipient: string,
-        amount: string,
-        error: string
-    ) {
-        const recordIns = new RequestRecord();
-        recordIns.client = client;
-        recordIns.account = account;
-        recordIns.receipentId = recipient;
-        recordIns.amount = amount;
-        recordIns.token = token;
-        recordIns.timestamp = Date.now();
-        recordIns.error = error;
-        recordIns.status = RequestRecordStatus.EXCEPTION;
-
-        await this.requestRecordRepo.save(recordIns);
-    }
-
-    async transactionConfirmed(
-        token: Token,
-        txId: string,
-    ) {
-        const find = await this.requestRecordRepo.findOne({
-            token,
-            txId
-        });
-        if (!find) {
-            return;
-        }
-
-        find.confirmed = true;
-        await this.requestRecordRepo.save(find);
     }
 }

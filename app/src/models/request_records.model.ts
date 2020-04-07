@@ -2,9 +2,9 @@ import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 import { Token } from '../libs/types';
 
 export const enum RequestRecordStatus {
-    SUCCESS = 0,
-    FAILURE = 1,
-    EXCEPTION = 2
+    Init = 0,
+    Success = 1,
+    Failure = -1,
 }
 
 @Entity('request_records')
@@ -13,35 +13,41 @@ export class RequestRecord {
     id: string;
 
     @Column()
-    client: string;
+    clientId: string;
 
     @Column()
-    account: string;
+    accountId: string;
 
     @Column()
-    receipentId: string;
+    recipientId: string;
 
     @Column()
     amount: string;
 
+    @Column({ nullable: true })
+    feePriority: string;
+
+    @Column({ nullable: true })
+    fee: string;
+
+    @Column()
+    businessId: string;
+
+    @Column()
+    callbackURI: string;
+
     @Column()
     token: Token;
+
+    @Column()
+    ip: string;
+
+    @Column()
+    route: string;
 
     @Column()
     timestamp: number;
 
     @Column()
     status: RequestRecordStatus;
-
-    @Column({ nullable: true })
-    confirmed: boolean;
-
-    @Column({ nullable: true })
-    serial: number;
-
-    @Column({ nullable: true })
-    txId: string;
-
-    @Column({ nullable: true })
-    error: string;
 }

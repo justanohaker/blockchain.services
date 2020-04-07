@@ -1,5 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsNumberString, IsString, IsIn } from "class-validator";
+import { IsNumberString, IsString, IsIn, IsNumber, IsUrl } from "class-validator";
 import { Account } from '../../models/accounts.model';
 import { ResponseBase } from "../../libs/responseHelper";
 import { Token, FeePriority } from '../../libs/types';
@@ -97,9 +97,23 @@ export class DespositDto {
     @IsString()
     @IsIn([FeePriority.HIGH, FeePriority.NORMAL, FeePriority.LOWER])
     feePriority: FeePriority;
+
+    @ApiProperty({
+        description: '系统唯一值，重复无效',
+        example: '20200406093000000'
+    })
+    @IsString()
+    businessId: string;
+
+    @ApiProperty({
+        description: '回调URI地址',
+        example: 'http://localhost:5678/callback'
+    })
+    @IsUrl()
+    callbackURI: string;
 }
 
-export class TransferWithFeeDto {
+export class TransferDto {
     @ApiProperty({
         description: '提币目标地址',
         example: 'address for blockchain'
@@ -111,7 +125,7 @@ export class TransferWithFeeDto {
         description: '待提币金额 - 输入各平台最小单位(Satoshi, Gas)',
         example: '100000'
     })
-    @IsString()
+    @IsNumberString()
     amount: string;
 
     @ApiProperty({
@@ -120,29 +134,20 @@ export class TransferWithFeeDto {
     })
     @IsNumberString()
     fee: string;
-}
 
-export class TransferWithPayedDto {
     @ApiProperty({
-        description: '提币目标地址',
-        example: 'address for blockchain'
+        description: '系统唯一值，重复无效',
+        example: '20200406093000000'
     })
     @IsString()
-    address: string;
+    businessId: string;
 
     @ApiProperty({
-        description: '待提币金额 - 输入各平台最小单位(Satoshi, Gas)',
-        example: '100000'
+        description: '回调URI地址',
+        example: 'http://localhost:5678/callback'
     })
-    @IsString()
-    amount: string;
-
-    @ApiProperty({
-        description: '指定的交易费',
-        example: '100000000'
-    })
-    @IsNumberString()
-    fee: string;
+    @IsUrl()
+    callbackURI: string;
 }
 
 // response
@@ -195,4 +200,8 @@ export class DespositRespDto extends ResponseBase {
     serial?: number;
     txId?: string;
     error?: string;
+}
+
+export class TransferWithCallbackRespDto {
+
 }

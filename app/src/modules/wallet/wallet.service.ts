@@ -5,8 +5,9 @@ import { Client } from '../../models/clients.model';
 import { ChainSecret } from '../../models/chain.secret.model';
 import { User } from '../../models/users.model';
 import { ClientPayed } from '../../models/client-payed.model';
-import { bipNewMnemonic, bipHexPrivFromxPriv, bipWIFFromxPriv } from '../../libs/helpers/bipHelper';
-import { RespErrorCode } from '../../libs/responseHelper';
+import { ClientIPDto } from '../../libs/decorators/ip.decorator';
+import { bipNewMnemonic } from '../../libs/helpers/bipHelper';
+import { RespErrorCode, ResponseBase } from '../../libs/responseHelper';
 import { Token } from '../../libs/types';
 import { IChainProvider } from './providers/provider.interface';
 import { NullProvider } from './providers/null.provider';
@@ -26,12 +27,12 @@ import {
     DespositRespDto,
     TokenInfo,
     TokenAccount,
-    TransferWithFeeDto,
     TokenBalance,
-    TransferWithPayedDto
+    TransferDto
 } from './wallet.dto';
 import { RequestRecordService } from './request-record.service';
-import { AccountKeyPair, FeeRangeDef } from '../../blockchain/common/types';
+import { FeeRangeDef } from '../../blockchain/common/types';
+
 
 const TEST_MNEMONIC = 'cave syrup rather injury exercise unit army burden matrix horn celery gas border churn wheat';
 
@@ -233,178 +234,90 @@ export class WalletService implements OnModuleInit, OnModuleDestroy {
         return await provider.getFeeRange();
     }
 
-    async despositTo(
+    async deposit(
+        clientIp: ClientIPDto,
         clientId: string,
         accountId: string,
         token: Token,
-        despositDto: DespositDto
-    ): Promise<DespositRespDto> {
-        const result: DespositRespDto = { success: true };
+        data: DespositDto
+    ): Promise<ResponseBase> {
+        const result: ResponseBase = { success: true };
+        const rowid = await this.requestRecordService.addRequestRecordWithFeePriority(
+            clientIp.ip,
+            clientIp.routePath,
+            token,
+            clientId,
+            accountId,
+            data.address,
+            data.amount,
+            data.feePriority,
+            data.businessId,
+            data.callbackURI
+        );
         try {
             const provider = this.getProvider(token);
-            const transferResult = await provider.transfer(clientId, accountId, despositDto);
+            const transferResult = await provider.deposit(clientId, accountId, data);
             result.success = transferResult.success;
-            if (transferResult.success) {
-                result.serial = transferResult.serial!;
-                result.txId = transferResult.txId!;
-                this.requestRecordService.addSuccessRecord(
-                    token,
-                    clientId,
-                    accountId,
-                    despositDto.address,
-                    despositDto.amount,
-                    result.serial,
-                    result.txId
-                );
-
-            } else {
-                result.serial = transferResult.serial!;
-                result.error = transferResult.error!
-                result.errorCode = RespErrorCode.BAD_REQUEST;
-                this.requestRecordService.addFailureRecord(
-                    token,
-                    clientId,
-                    accountId,
-                    despositDto.address,
-                    despositDto.amount,
-                    result.serial,
-                    result.error
-                );
+            if (!result.success) {
+                result.success = false;
+                result.error = transferResult.error;
+                result.errorCode = transferResult.errorCode;
             }
+            transferResult.success
+                ? this.requestRecordService.updateRequestRecordSuccess(rowid)
+                : this.requestRecordService.updateRequestRecordFailure(rowid);
         } catch (error) {
-            this.requestRecordService.addExceptionRecord(
-                token,
-                clientId,
-                accountId,
-                despositDto.address,
-                despositDto.amount,
-                error.toString()
-            );
-            throw error;
-            // result.success = false;
-            // result.error = `${error}`;
-            // result.errorCode = RespErrorCode.BAD_REQUEST;
+            result.success = false;
+            result.error = `${error}`;
+            result.errorCode = RespErrorCode.INTERNAL_SERVER_ERROR;
+            this.requestRecordService.updateRequestRecordFailure(rowid);
         }
 
         return result;
     }
 
-    async transferWithFee(
+    async transfer(
+        clientIp: ClientIPDto,
         clientId: string,
         accountId: string,
         token: Token,
-        transferWithFeeDto: TransferWithFeeDto
-    ): Promise<DespositRespDto> {
-        const result: DespositRespDto = { success: true };
+        data: TransferDto
+    ): Promise<ResponseBase> {
+        const result: ResponseBase = { success: true };
+        const rowid = await this.requestRecordService.addRequestRecordWithFee(
+            clientIp.ip,
+            clientIp.routePath,
+            token,
+            clientId,
+            accountId,
+            data.address,
+            data.amount,
+            data.fee,
+            data.businessId,
+            data.callbackURI
+        );
         try {
             const provider = this.getProvider(token);
-            const transferResult = await provider.transferWithFee(clientId, accountId, transferWithFeeDto);
-            result.success = transferResult.success;
-            if (transferResult.success) {
-                result.serial = transferResult.serial!;
-                result.txId = transferResult.txId!;
-                this.requestRecordService.addSuccessRecord(
-                    token,
-                    clientId,
-                    accountId,
-                    transferWithFeeDto.address,
-                    transferWithFeeDto.amount,
-                    result.serial,
-                    result.txId
-                );
-            } else {
-                result.serial = transferResult.serial!;
-                result.error = transferResult.error!
-                result.errorCode = RespErrorCode.BAD_REQUEST;
-                this.requestRecordService.addFailureRecord(
-                    token,
-                    clientId,
-                    accountId,
-                    transferWithFeeDto.address,
-                    transferWithFeeDto.amount,
-                    result.serial,
-                    result.error
-                );
-            }
-        } catch (error) {
-            this.requestRecordService.addExceptionRecord(
-                token,
+            const transferResult = await provider.transfer(
                 clientId,
                 accountId,
-                transferWithFeeDto.address,
-                transferWithFeeDto.amount,
-                error.toString()
+                data
             );
-            throw error;
+            if (!transferResult.success) {
+                result.success = false;
+                result.error = transferResult.error;
+                result.errorCode = transferResult.errorCode;
+            }
+            transferResult.success
+                ? this.requestRecordService.updateRequestRecordSuccess(rowid)
+                : this.requestRecordService.updateRequestRecordFailure(rowid);
+        } catch (error) {
+            result.success = false;
+            result.error = `${error}`;
+            result.errorCode = RespErrorCode.INTERNAL_SERVER_ERROR;
+            this.requestRecordService.updateRequestRecordFailure(rowid);
         }
-        return result;
-    }
 
-    async transferWithPayed(
-        clientId: string,
-        accountId: string,
-        token: Token,
-        data: TransferWithPayedDto
-    ): Promise<DespositRespDto> {
-        const result: DespositRespDto = { success: true };
-        try {
-            const payedInfo = await this.clientPayedRepo.findOne({ clientId, token });
-            const payedKeyPair = {
-                privateKey: await bipHexPrivFromxPriv(
-                    payedInfo.privkey,
-                    token
-                ),
-                wif: await bipWIFFromxPriv(
-                    payedInfo.privkey,
-                    token
-                ),
-                address: payedInfo.address
-            } as AccountKeyPair;
-            const provider = this.getProvider(token);
-            const transferResult = await provider.transferWithPayed(
-                clientId,
-                accountId,
-                data,
-                payedKeyPair
-            );
-            result.success = transferResult.success;
-            if (transferResult.success) {
-                result.serial = transferResult.serial!;
-                result.txId = transferResult.txId!;
-                this.requestRecordService.addSuccessRecord(
-                    token,
-                    clientId,
-                    accountId,
-                    data.address,
-                    data.amount,
-                    result.serial,
-                    result.txId
-                );
-            } else {
-                result.serial = transferResult.serial!;
-                result.error = transferResult.error!
-                result.errorCode = RespErrorCode.BAD_REQUEST;
-                this.requestRecordService.addFailureRecord(
-                    token,
-                    clientId,
-                    accountId,
-                    data.address,
-                    data.amount,
-                    result.serial,
-                    result.error
-                );
-            }
-        } catch (error) {
-            this.requestRecordService.addExceptionRecord(
-                token,
-                clientId,
-                accountId,
-                data.address,
-                data.amount,
-                error.toString()
-            );
-            throw error;
-        }
         return result;
     }
 

@@ -1,13 +1,14 @@
-import { Injectable, OnApplicationBootstrap, Logger } from '@nestjs/common';
+import { Injectable, OnApplicationBootstrap, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Token } from '../../../libs/types';
 import { addressIsBitcoin } from '../../../libs/helpers/addressHelper';
+import { bipWIFFromxPriv, bipHexPrivFromxPriv } from '../../../libs/helpers/bipHelper';
 import { OmniUsdtService } from '../../../blockchain/omni-tokens/omni-usdt/omni-usdt.service';
-import { Transaction } from '../../../blockchain/common/types';
+import { Transaction, AccountKeyPair, BlockDef } from '../../../blockchain/common/types';
 import { OmniUsdtTransactin } from '../../../blockchain/common/types';
 import { PusherService } from '../../../modules/pusher/pusher.service';
-import { PushPlatform } from '../../../modules/pusher/types';
+import { PushPlatform, PushEventType } from '../../../modules/pusher/types';
 import { Client } from '../../../models/clients.model';
 import { ClientPayed } from '../../../models/client-payed.model';
 import { User } from '../../../models/users.model';
@@ -23,12 +24,18 @@ import {
     TxAddAction,
     TxAddActionResult,
     FromChainTxAction,
-    ToChainTxAction
+    ToChainTxAction,
+    TransferTask,
+    TransferInternalTask
 } from './types';
 
+const SchedTimeout = 500;
+const MaxConfirmed = 1;
+
 @Injectable()
-export class OmniUsdtProvider extends Provider implements OnApplicationBootstrap {
+export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModuleDestroy, OnApplicationBootstrap {
     public readonly Logger: Logger = new Logger('OmniUsdtProvider', true);
+    private schedHandler: NodeJS.Timeout;
     constructor(
         @InjectRepository(Client) public readonly ClientRepo: Repository<Client>,
         @InjectRepository(User) public readonly UserRepo: Repository<User>,
@@ -47,6 +54,9 @@ export class OmniUsdtProvider extends Provider implements OnApplicationBootstrap
         this.txAdd = this.txAdd.bind(this);
         this.fromChainTx = this.fromChainTx.bind(this);
         this.toChainTx = this.toChainTx.bind(this);
+
+        this.transferScheduler = this.transferScheduler.bind(this);
+        // this.schedHandler = setTimeout(this.transferScheduler, SchedTimeout);
     }
 
     // BEGIN: override properties
@@ -58,6 +68,17 @@ export class OmniUsdtProvider extends Provider implements OnApplicationBootstrap
     get FromChainTxAction(): FromChainTxAction { return this.fromChainTx; }
     get ToChainTxAction(): ToChainTxAction { return this.toChainTx; }
     // END
+
+    async onModuleInit() {
+        this.schedHandler = setTimeout(this.transferScheduler, SchedTimeout);
+    }
+
+    async onModuleDestroy() {
+        if (this.schedHandler) {
+            clearTimeout(this.schedHandler);
+            this.schedHandler = null;
+        }
+    }
 
     async onApplicationBootstrap() {
         this.IService?.setProvider(this);
@@ -152,5 +173,179 @@ export class OmniUsdtProvider extends Provider implements OnApplicationBootstrap
             reference: omniData.reference,
             amount: omniData.amount
         } as OmniUsdtDef
+    }
+
+    protected async pushTransferTask(task: TransferTask): Promise<void> {
+        const {
+            clientId,
+            accountId,
+            address,
+            amount,
+            fee,
+            businessId,
+            callbackURI
+        } = task;
+        const sender = await this.retrieveAccount(clientId, accountId);
+        let tasks = this.tasks.get(sender.address);
+        if (tasks == null) {
+            tasks = [];
+            this.tasks.set(sender.address, tasks);
+        }
+        tasks.push({
+            clientId,
+            accountId,
+            address,
+            amount,
+            fee,
+            businessId,
+            callbackURI,
+            preTxId: null,
+            preTxConfirmed: -1,
+        });
+
+    }
+
+    private transferScheduler() {
+        this.schedHandler = null;
+        (async () => {
+            for (const key of this.tasks.keys()) {
+                const tasks = this.tasks.get(key);
+                if (tasks.length <= 0) {
+                    continue;
+                }
+
+                const task = tasks[0];
+                const { clientId, accountId, amount, fee, preTxId, preTxConfirmed, } = task;
+                const sender = await this.retrieveAccount(clientId, accountId);
+                // this.Logger.log(`transferSched[init]-${JSON.stringify(task)},${sender.address}`);
+                if (preTxId == null) {
+                    // TODO
+                    // this.Logger.log(`transferSched[needPrepareTransferAction]-${sender.address},${amount},${fee}`)
+                    if (await this.needPrepareTransferAction(sender.address, amount, fee)) {
+                        try {
+                            this.Logger.log(`transferSched[postTransfer1]-${JSON.stringify(sender)},${JSON.stringify(task)}`);
+                            await this.postTransfer(sender, task);
+                            tasks.splice(0, 1);
+                        } catch (error) { }
+                    } else {
+                        try {
+                            const payAccount = await this.ClientPayedRepo.findOne({ clientId, token: this.Token });
+                            // this.Logger.log(`transferSched[prepareTransfer]-${JSON.stringify(payAccount)},${JSON.stringify(sender)},${JSON.stringify(task)}`)
+                            const txId = await this.prepareTransfer(payAccount, sender, task);
+                            if (txId) {
+                                task.preTxId = txId;
+                                task.preTxConfirmed = 0;
+                            }
+                        } catch (error) { }
+                    }
+                    continue;
+                }
+                if (preTxId && preTxConfirmed >= MaxConfirmed) {
+                    // TODO
+                    try {
+                        // this.Logger.log(`transferSched[postTransfer2]-${JSON.stringify(sender)},${JSON.stringify(task)}`);
+                        await this.postTransfer(sender, task);
+                        tasks.splice(0, 1);
+                    } catch (error) { }
+                    continue;
+                }
+            }
+        })()
+            .catch((error) => { /* // TODO */ })
+            .finally(() => this.schedHandler = setTimeout(this.transferScheduler, SchedTimeout));
+    }
+
+    private async needPrepareTransferAction(address: string, amount: string, fee: string): Promise<boolean> {
+        let result: boolean = true;
+        try {
+            result = await this.IService?.isBalanceEnought(address, amount, fee);
+        } catch (error) { }
+        return result;
+    }
+
+    private async postTransfer(account: Account, task: TransferInternalTask): Promise<void> {
+        const { accountId, address, amount, fee, businessId, callbackURI } = task;
+        const transfer = await this.IService?.transferWithFee({
+            keyPair: {
+                privateKey: await bipHexPrivFromxPriv(account.privkey, this.Token),
+                wif: await bipWIFFromxPriv(account.privkey, this.Token),
+                address: account.address
+            },
+            address,
+            amount,
+            fee
+        });
+        const { success, error, txId } = transfer;
+        if (success) {
+            // TODO
+            const notification = {
+                status: true,
+                accountId,
+                address: account.address,
+                businessId,
+                txId
+            }
+            this.pushNotificationWithURI(
+                callbackURI,
+                PushEventType.TransactionCreated,
+                notification
+            );
+        } else {
+            // TODO: 这里失败的情况是否需要尝试
+            const notification = {
+                status: false,
+                accountId,
+                address: account.address,
+                businessId,
+                error
+            };
+            this.pushNotificationWithURI(
+                callbackURI,
+                PushEventType.TransactionCreated,
+                notification
+            );
+        }
+    }
+
+    private async prepareTransfer(payAccount: ClientPayed, account: Account, task: TransferInternalTask): Promise<string> {
+        const { amount, fee } = task;
+        const payedKeyPair = {
+            privateKey: await bipHexPrivFromxPriv(payAccount.privkey, this.Token),
+            wif: await bipWIFFromxPriv(payAccount.privkey, this.Token),
+            address: payAccount.address
+        } as AccountKeyPair;
+        try {
+            const transfer = await this.IService?.prepareTransfer({
+                keyPair: payedKeyPair,
+                address: account.address,
+                amount,
+                fee
+            });
+            const { success, error, txId } = transfer;
+            if (!success) {
+                // TODO: 这里的失败的情况是否需要尝试
+                throw new Error(`${error}`);
+            }
+            return txId;
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    // callbacks
+    async onNewBlock(block: BlockDef): Promise<void> {
+        await super.onNewBlock(block);
+
+        for (const key of this.tasks.keys()) {
+            const tasks = this.tasks.get(key);
+            if (tasks.length <= 0) {
+                continue;
+            }
+
+            const task = tasks[0];
+            if (task.preTxId) {
+                task.preTxConfirmed++;
+            }
+        }
     }
 }

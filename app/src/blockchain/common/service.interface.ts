@@ -1,4 +1,4 @@
-import { TransferDef, TransferResp, BalanceResp, TransferWithFeeDef, TransferWithPayedDef, FeeRangeDef } from './types';
+import { TransferDef, TransferResp, BalanceResp, TransferWithFeeDef, TransferWithPayedDef, FeeRangeDef, PrepareTransferDef } from './types';
 import { IServiceProvider } from './service.provider';
 
 const UPDATE_TIMEOUT: number = 2 * 1000;
@@ -51,20 +51,41 @@ export class IService {
     }
 
     /**
+     * 检测指定地址余额是否满足转账需求
+     * @param address   - 转账地址
+     * @param amount    - 转账金额
+     * @param fee       - 转账交易费
+     */
+    async isBalanceEnought(address: string, amount: string, fee: string): Promise<boolean> {
+        // TODO: implemented by subclass!
+        throw new Error('Unimplemented...');
+    }
+
+    /**
+     * 预提币 - 在提币请求中，发现提币账号上的余额不足以提币时，先从代付账号上转账，以满足提币需求
+     * @param data 
+     * @param data.keyPair - 代付账号信息
+     * @param data.address - 提币账号地址
+     * @param data.amount - 提币的数量
+     * @param data.fee - 提币指定的交易费
+     * @note - 模块要计算提币账号的余额信息，对比提币数量和交易费用，进行预转账处理，
+     * @note - 特别注意Token与主链币的问题
+     */
+    async prepareTransfer(data: PrepareTransferDef): Promise<TransferResp> {
+        throw new Error('Unimplemented...');
+    }
+
+    /**
      * @note override
      * @param data - 转账参数
      */
     async transfer(data: TransferDef): Promise<TransferResp> {
         // TODO: implemented by subclass
-        throw new Error('Unimplememted...');
+        throw new Error('Unimplemented...');
     }
 
     async transferWithFee(data: TransferWithFeeDef): Promise<TransferResp> {
         // TODO: implemented by subclass
-        throw new Error('Unimplemented...');
-    }
-
-    async transferWithPayed(data: TransferWithPayedDef): Promise<TransferResp> {
         throw new Error('Unimplemented...');
     }
 

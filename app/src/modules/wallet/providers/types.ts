@@ -7,12 +7,34 @@ import {
 } from "../../../models/transactions.model"
 import { Account } from '../../../models/accounts.model';
 import { Transaction } from '../../../blockchain/common/types';
+import { RespErrorCode } from "../../../libs/responseHelper";
 
 export type TransferResult = {
     success: boolean;
-    serial: number;
     txId?: string;
     error?: string;
+    errorCode?: RespErrorCode;
+}
+
+export type TransferWithCallbackResult = {
+    success: boolean;
+    error?: string;
+    errorCode?: RespErrorCode;
+}
+
+export type TransferTask = {
+    clientId: string;
+    accountId: string;
+    address: string;
+    amount: string;
+    fee: string;
+    businessId: string;
+    callbackURI: string;
+}
+
+export type TransferInternalTask = TransferTask & {
+    preTxId: string;
+    preTxConfirmed: number;
 }
 
 // TxId包装类型

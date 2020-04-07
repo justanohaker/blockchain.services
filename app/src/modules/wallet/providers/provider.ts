@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { IService } from '../../../blockchain/common/service.interface';
-import { Transaction, BalanceDef, AccountKeyPair, FeeRangeDef } from '../../../blockchain/common/types';
+import { Transaction, BalanceDef, AccountKeyPair, FeeRangeDef, BlockDef } from '../../../blockchain/common/types';
 import { IServiceProvider } from '../../../blockchain/common/service.provider';
 import {
     bipPrivpubFromMnemonic,
@@ -10,6 +10,7 @@ import {
     bipWIFFromxPriv
 } from '../../../libs/helpers/bipHelper';
 import { Token, TransactionDirection } from '../../../libs/types';
+import { RespErrorCode } from '../../../libs/responseHelper';
 import { Client } from '../../../models/clients.model';
 import { ClientPayed } from '../../../models/client-payed.model';
 import { User } from '../../../models/users.model';
@@ -19,7 +20,7 @@ import { Serial } from '../../../models/serial.model';
 import { ChainTx, ChainTxIndex } from '../../../models/transactions.model';
 import { PushPlatform, PushEventType } from '../../../modules/pusher/types';
 import { PusherService } from '../../../modules/pusher/pusher.service';
-import { DespositDto, TransferWithFeeDto, TransferWithPayedDto } from '../wallet.dto';
+import { DespositDto, TransferDto } from '../wallet.dto';
 import { IChainProvider } from './provider.interface';
 import {
     TxDef,
@@ -28,7 +29,10 @@ import {
     TxAddAction,
     FromChainTxAction,
     ToChainTxAction,
-    TransferResult
+    TransferResult,
+    TransferWithCallbackResult,
+    TransferInternalTask,
+    TransferTask,
 } from './types';
 
 export class Provider implements IChainProvider, IServiceProvider {
@@ -64,7 +68,13 @@ export class Provider implements IChainProvider, IServiceProvider {
     protected readonly ClientPayedRepo: Repository<ClientPayed>;
     // END
     // END 
-    constructor() { }
+
+    protected tasks: Map<string, TransferInternalTask[]>;
+    protected businessIdCache: Map<string, string[]>;
+    constructor() {
+        this.tasks = new Map();
+        this.businessIdCache = new Map();
+    }
 
     // IChainProvider
     async addAccount(userRepo: User, secret: string): Promise<Account> {
@@ -139,270 +149,157 @@ export class Provider implements IChainProvider, IServiceProvider {
         return await this.IService?.getFeeRange();
     }
 
+    async deposit(
+        clientId: string,
+        accountId: string,
+        data: DespositDto
+    ): Promise<TransferResult> {
+        this.Logger?.log(`deposit ${clientId}, ${accountId}, ${JSON.stringify(data, null, 2)}`);
+        let result: TransferResult = { success: true };
+        const { address, amount, feePriority, businessId, callbackURI } = data;
+        try {
+            do {
+                if (!await this.AddressValidator(address)) {
+                    result.success = false;
+                    result.error = 'Invalid recipient address!';
+                    result.errorCode = RespErrorCode.BAD_REQUEST;
+                    break;
+                }
+                if (!await this.exists(clientId, accountId)) {
+                    result.success = false;
+                    result.error = 'Invalid account!';
+                    result.errorCode = RespErrorCode.BAD_REQUEST;
+                    break;
+                }
+                if (!this.isBusinessIdValid(clientId, businessId)) {
+                    result.success = false;
+                    result.error = 'Invalid businessId, maybe exists!';
+                    result.errorCode = RespErrorCode.BAD_REQUEST;
+                    break;
+                }
+                this.addBusinessId(clientId, businessId);
+                const accountRepo = await this.retrieveAccount(clientId, accountId);
+                const keyPair: AccountKeyPair = {
+                    privateKey: await bipHexPrivFromxPriv(accountRepo.privkey, this.Token),
+                    wif: await bipWIFFromxPriv(accountRepo.privkey, this.Token),
+                    address: accountRepo.address
+                };
+                const transferResult = await this.IService?.transfer({
+                    keyPair,
+                    address,
+                    amount,
+                    feePriority
+                });
+                if (transferResult == null || !transferResult.success) {
+                    // failure
+                    result.success = false;
+                    result.error = `${transferResult.error}`;
+                    result.errorCode = RespErrorCode.INTERNAL_SERVER_ERROR;
+                    const notificationData = {
+                        status: false,
+                        accountId,
+                        address: keyPair.address,
+                        businessId: businessId,
+                        error: `${transferResult == null ? 'Unimplemented!' : (transferResult.error!.toString())}`
+                    };
+                    this.pushNotificationWithURI(callbackURI, PushEventType.TransactionCreated, notificationData)
+                    this.Logger?.log(`deposit(Failure): ${JSON.stringify(notificationData, null, 2)}`)
+                    break;
+                }
+                // BEGIN: push new transaction created??
+                const notificationData = {
+                    status: true,
+                    accountId,
+                    address: keyPair.address,
+                    businessId: businessId,
+                    txId: transferResult.txId!
+                }
+                this.pushNotificationWithURI(callbackURI, PushEventType.TransactionCreated, notificationData);
+                // END
+                this.Logger?.log(`deposit(Success): ${JSON.stringify(notificationData, null, 2)}`);
+                result.success = true;
+                result.txId = transferResult.txId!;
+            } while (false);
+        } catch (error) {
+            // failure
+            result.success = false;
+            result.error = `${error}`;
+            result.errorCode = RespErrorCode.INTERNAL_SERVER_ERROR;
+            const accountRepo = await this.retrieveAccount(clientId, accountId);
+            if (accountRepo) {
+                const notificationData = {
+                    status: false,
+                    accountId,
+                    address: accountRepo.address,
+                    businessId: businessId,
+                    error: `${error}`,
+                };
+                this.pushNotificationWithURI(callbackURI, PushEventType.TransactionCreated, notificationData);
+                this.Logger?.log(`deposit(Exception): ${JSON.stringify(notificationData, null, 2)}`)
+            } else {
+                this.Logger?.log(`deposit(Exception): ${error}`);
+                throw error;
+            }
+        }
+        if (!result.success) this.delBusinessId(clientId, businessId);
+        return result;
+    }
+
     async transfer(
         clientId: string,
         accountId: string,
-        despositDto: DespositDto
-    ): Promise<TransferResult> {
-        this.Logger?.log(`transfer ${clientId}, ${accountId}, ${JSON.stringify(despositDto, null, 2)}`);
-        const eventType = PushEventType.TransactionCreated;
-        const serial = await this.loadAndIncrSerial(clientId, accountId, this.Token);
-        let result: TransferResult = {
-            success: true,
-            serial
-        };
-        const toAddress = despositDto.address;
-        const amount = despositDto.amount;
-        const feePriority = despositDto.feePriority;
+        data: TransferDto
+    ): Promise<TransferWithCallbackResult> {
+        /**
+         * 1 - 检查参数有效性
+         * 2 - 检查businessId是否存在
+         * 3 - 检查转账账号余额是否足够进行转账
+         */
+        const { address, amount, fee, businessId, callbackURI } = data;
+        const result: TransferWithCallbackResult = { success: true };
         try {
-            if (!await this.AddressValidator(toAddress) ||
-                !await this.exists(clientId, accountId)) {
-                throw new Error('Parameter Error!');
-            }
-            const accountRepo = await this.retrieveAccount(clientId, accountId);
-            const keyPair: AccountKeyPair = {
-                privateKey: await bipHexPrivFromxPriv(
-                    accountRepo.privkey,
-                    this.Token
-                ),
-                wif: await bipWIFFromxPriv(
-                    accountRepo.privkey,
-                    this.Token
-                ),
-                address: accountRepo.address
-            };
-            const transferResult = await this.IService?.transfer({
-                keyPair,
-                address: toAddress,
-                amount,
-                feePriority
-            });
-            if (transferResult == null
-                || !transferResult.success) {
-                // failure
-                const notificationData = {
-                    status: false,
+            do {
+                if (!await this.AddressValidator(address)) {
+                    result.success = false;
+                    result.error = 'Invalid recipient address!';
+                    result.errorCode = RespErrorCode.BAD_REQUEST;
+                    break;
+                }
+                if (!await this.exists(clientId, accountId)) {
+                    result.success = false;
+                    result.error = 'Invalid account!';
+                    result.errorCode = RespErrorCode.BAD_REQUEST;
+                    break;
+                }
+                if (!this.isBusinessIdValid(clientId, businessId)) {
+                    result.success = false;
+                    result.error = 'Invalid businessId, maybe exists!';
+                    result.errorCode = RespErrorCode.BAD_REQUEST;
+                    break;
+                }
+                this.addBusinessId(clientId, businessId);
+                this.pushTransferTask({
+                    clientId,
                     accountId,
-                    address: keyPair.address,
-                    serial,
-                    error: `${transferResult == null ? 'Unimplemented!' : (transferResult.error!.toString())}`
-                };
-                this.pushNotification(clientId, accountId, eventType, notificationData);
-                this.Logger?.log(`transfer(Failure): ${JSON.stringify(notificationData, null, 2)}`)
-                throw new Error(transferResult == null ? 'Unimplemented!' : `${transferResult.error!}`);
-            }
-            // BEGIN: push new transaction created??
-            const notificationData = {
-                status: true,
-                accountId,
-                address: keyPair.address,
-                serial,
-                txId: transferResult.txId!
-            }
-            this.pushNotification(clientId, accountId, eventType, notificationData);
-            // END
-            this.Logger?.log(`transfer(Success): ${JSON.stringify(notificationData, null, 2)}`);
-            result.success = true;
-            result.txId = transferResult.txId!;
+                    address,
+                    amount,
+                    fee,
+                    businessId,
+                    callbackURI
+                } as TransferTask)
+            } while (false);
         } catch (error) {
-            // failure
             result.success = false;
             result.error = `${error}`;
-            const accountRepo = await this.retrieveAccount(clientId, accountId);
-            if (accountRepo) {
-                const notificationData = {
-                    status: false,
-                    accountId,
-                    address: accountRepo.address,
-                    serial,
-                    error: `${error}`,
-                };
-                this.pushNotification(clientId, accountId, eventType, notificationData);
-                this.Logger?.log(`transfer(Exception): ${JSON.stringify(notificationData, null, 2)}`)
-            } else {
-                this.Logger?.log(`transfer(Exception): ${error}`);
-                throw error;
-            }
+            result.errorCode = RespErrorCode.BAD_REQUEST;
         }
+        if (!result.success) this.delBusinessId(clientId, businessId);
         return result;
     }
 
-    async transferWithFee(
-        clientId: string,
-        accountId: string,
-        transferWithFeeDto: TransferWithFeeDto
-    ): Promise<TransferResult> {
-        this.Logger?.log(`transferWithFee ${clientId}, ${accountId}, ${JSON.stringify(transferWithFeeDto, null, 2)}`);
-        const eventType = PushEventType.TransactionCreated;
-        const serial = await this.loadAndIncrSerial(clientId, accountId, this.Token);
-        let result: TransferResult = {
-            success: true,
-            serial
-        };
-        const toAddress = transferWithFeeDto.address;
-        const amount = transferWithFeeDto.amount;
-        const fee = transferWithFeeDto.fee;
-        try {
-            if (!await this.AddressValidator(toAddress) ||
-                !await this.exists(clientId, accountId)) {
-                throw new Error('Parameter Error!');
-            }
-            const accountRepo = await this.retrieveAccount(clientId, accountId);
-            const keyPair: AccountKeyPair = {
-                privateKey: await bipHexPrivFromxPriv(
-                    accountRepo.privkey,
-                    this.Token
-                ),
-                wif: await bipWIFFromxPriv(
-                    accountRepo.privkey,
-                    this.Token
-                ),
-                address: accountRepo.address
-            };
-            const transferResult = await this.IService?.transferWithFee({
-                keyPair,
-                address: toAddress,
-                amount,
-                fee
-            });
-            if (transferResult == null
-                || !transferResult.success) {
-                // failure
-                const notificationData = {
-                    status: false,
-                    accountId,
-                    address: keyPair.address,
-                    serial,
-                    error: `${transferResult == null ? 'Unimplemented!' : (transferResult.error!.toString())}`
-                };
-                this.pushNotification(clientId, accountId, eventType, notificationData);
-                this.Logger?.log(`transferWithFee(Failure): ${JSON.stringify(notificationData, null, 2)}`)
-                throw new Error(transferResult == null ? 'Unimplemented!' : `${transferResult.error!}`);
-            }
-            // BEGIN: push new transaction created??
-            const notificationData = {
-                status: true,
-                accountId,
-                address: keyPair.address,
-                serial,
-                txId: transferResult.txId!
-            }
-            this.pushNotification(clientId, accountId, eventType, notificationData);
-            // END
-            this.Logger?.log(`transferWithFee(Success): ${JSON.stringify(notificationData, null, 2)}`);
-            result.success = true;
-            result.txId = transferResult.txId!;
-        } catch (error) {
-            // failure
-            result.success = false;
-            result.error = `${error}`;
-            const accountRepo = await this.retrieveAccount(clientId, accountId);
-            if (accountRepo) {
-                const notificationData = {
-                    status: false,
-                    accountId,
-                    address: accountRepo.address,
-                    serial,
-                    error: `${error}`,
-                };
-                this.pushNotification(clientId, accountId, eventType, notificationData);
-                this.Logger?.log(`transferWithFee(Exception): ${JSON.stringify(notificationData, null, 2)}`)
-            } else {
-                this.Logger?.log(`transferWithFee(Exception): ${error}`);
-                throw error;
-            }
-        }
-        return result;
-    }
-
-    async transferWithPayed(
-        clientId: string,
-        accountId: string,
-        data: TransferWithPayedDto,
-        payedKeyPair: AccountKeyPair
-    ): Promise<TransferResult> {
-        this.Logger?.log(`transferWithPayed ${clientId}, ${accountId}, ${JSON.stringify(data, null, 2)}, ${JSON.stringify(payedKeyPair, null, 2)}`);
-        const eventType = PushEventType.TransactionCreated;
-        const serial = await this.loadAndIncrSerial(clientId, accountId, this.Token);
-        let result: TransferResult = {
-            success: true,
-            serial
-        };
-        const toAddress = data.address;
-        const amount = data.amount;
-        const fee = data.fee;
-        try {
-            if (!await this.AddressValidator(toAddress) ||
-                !await this.exists(clientId, accountId)) {
-                throw new Error('Parameter Error!');
-            }
-            const accountRepo = await this.retrieveAccount(clientId, accountId);
-            const keyPair: AccountKeyPair = {
-                privateKey: await bipHexPrivFromxPriv(
-                    accountRepo.privkey,
-                    this.Token
-                ),
-                wif: await bipWIFFromxPriv(
-                    accountRepo.privkey,
-                    this.Token
-                ),
-                address: accountRepo.address
-            };
-            const transferResult = await this.IService?.transferWithPayed({
-                keyPair,
-                address: toAddress,
-                amount,
-                fee,
-                payedKeyPair
-            });
-            if (transferResult == null
-                || !transferResult.success) {
-                // failure
-                const notificationData = {
-                    status: false,
-                    accountId,
-                    address: keyPair.address,
-                    serial,
-                    error: `${transferResult == null ? 'Unimplemented!' : (transferResult.error!.toString())}`
-                };
-                this.pushNotification(clientId, accountId, eventType, notificationData);
-                this.Logger?.log(`transferWithPayed(Failure): ${JSON.stringify(notificationData, null, 2)}`)
-                throw new Error(transferResult == null ? 'Unimplemented!' : `${transferResult.error!}`);
-            }
-            // BEGIN: push new transaction created??
-            const notificationData = {
-                status: true,
-                accountId,
-                address: keyPair.address,
-                serial,
-                txId: transferResult.txId!
-            }
-            this.pushNotification(clientId, accountId, eventType, notificationData);
-            // END
-            this.Logger?.log(`transferWithPayed(Success): ${JSON.stringify(notificationData, null, 2)}`);
-            result.success = true;
-            result.txId = transferResult.txId!;
-        } catch (error) {
-            // failure
-            result.success = false;
-            result.error = `${error}`;
-            const accountRepo = await this.retrieveAccount(clientId, accountId);
-            if (accountRepo) {
-                const notificationData = {
-                    status: false,
-                    accountId,
-                    address: accountRepo.address,
-                    serial,
-                    error: `${error}`,
-                };
-                this.pushNotification(clientId, accountId, eventType, notificationData);
-                this.Logger?.log(`transferWithPayed(Exception): ${JSON.stringify(notificationData, null, 2)}`)
-            } else {
-                this.Logger?.log(`transferWithPayed(Exception): ${error}`);
-                throw error;
-            }
-        }
-        return result;
+    protected async pushTransferTask(task: TransferTask): Promise<void> {
+        // TODO: implemented by subclass
+        throw new Error('Unimplemented...');
     }
 
     async onNewAccount(addresses: string[]): Promise<void> {
@@ -497,6 +394,10 @@ export class Provider implements IChainProvider, IServiceProvider {
             this.IService?.onUpdateBalances(addresses);
         }
 
+    }
+
+    async onNewBlock(block: BlockDef): Promise<void> {
+        // TODO
     }
 
     // helpers
@@ -609,5 +510,47 @@ export class Provider implements IChainProvider, IServiceProvider {
                 data,
             });
         }
+    }
+
+    protected async pushNotificationWithURI(
+        uri: string,
+        eventType: PushEventType,
+        data: Object
+    ): Promise<void> {
+        this.PushService?.addPush(uri, {
+            type: eventType,
+            platform: this.PushPlatform,
+            data,
+        });
+    }
+
+    protected isBusinessIdValid(clientId: string, businessId: string): boolean {
+        const validBusinessIds = this.businessIdCache.get(clientId);
+        if (validBusinessIds == null) {
+            return true;
+        }
+        if (!validBusinessIds.includes(businessId)) {
+            return true;
+        }
+        return false;
+    }
+
+    protected addBusinessId(clientId: string, businessId: string): void {
+        let businessIds = this.businessIdCache.get(clientId);
+        if (businessIds == null) {
+            businessIds = [];
+            this.businessIdCache.set(clientId, businessIds);
+        }
+        businessIds.push(businessId);
+    }
+
+    protected delBusinessId(clientId: string, businessId: string): void {
+        let businessIds = this.businessIdCache.get(clientId);
+        if (businessIds == null) {
+            return;
+        }
+
+        businessIds = businessIds.filter((val: string) => val != businessId);
+        this.businessIdCache.set(clientId, businessIds);
     }
 }
