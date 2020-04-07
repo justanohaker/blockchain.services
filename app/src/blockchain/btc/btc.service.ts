@@ -221,7 +221,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
             let txid = await client.command('sendrawtransaction', txhash);
             console.log('sendrawtransaction ==>', txid)
 
-            return { success: true, txId: "txid" };
+            return { success: true, txId: txid };
         } catch (error) {
             console.log(error)
             return { success: false, error };
@@ -305,7 +305,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
             let txid = await client.command('sendrawtransaction', psbthash);
             console.log('sendrawtransaction ==>', txid)
 
-            return { success: true, txId: "txid" };
+            return { success: true, txId: txid };
         } catch (error) {
             console.log(error)
             return { success: false, error };
