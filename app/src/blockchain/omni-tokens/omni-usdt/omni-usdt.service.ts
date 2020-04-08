@@ -1,6 +1,10 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { IService } from '../../common/service.interface';
-import { TransferDef, TransferResp, BalanceResp, OmniUsdtTransactin, TransferWithFeeDef, TransferWithPayedDef, FeeRangeDef } from '../../../blockchain/common/types';
+import {
+    TransferDef, TransferResp, BalanceResp, OmniUsdtTransactin, TransferWithFeeDef,
+    TransferWithPayedDef, FeeRangeDef, PrepareTransferDef
+} from '../../../blockchain/common/types';
+import { Psbt, networks, ECPair } from 'bitcoinjs-lib';
 import { FeePriority } from 'src/libs/types';
 import Bignumber from 'bignumber.js';
 import coinSelect = require('coinselect');
@@ -51,15 +55,18 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
             // console.log('addresses =0=>', this.addresses)
 
             let chainInfo = await client.command('omni_getinfo');
+            // console.log('chainInfo =1=>', chainInfo)
             let lastBlockHeght = chainInfo.block;
             // console.log('lastBlockHash =1=>', lastBlockHash)
-            if (this.lastHeight === lastBlockHeght) {// 没有更新区块
+            if (this.lastHeight === lastBlockHeght) {// 没有更新区块 
                 return
             }
 
             this.lastHeight = lastBlockHeght;
+            this.provider.onNewBlock({ height: lastBlockHeght });
+
             let transactions = await client.command('omni_listblocktransactions', lastBlockHeght);
-            // console.log('getblock =2=>', block)
+            // console.log('omni_listblocktransactions =2=>', transactions)
 
             let txs = [];
             for (let txid of transactions) {
@@ -146,14 +153,14 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
                     scriptPubKey: unspent.scriptPubKey,
                 });
             }
-            // let targets = [{
-            //     address: data.address,
-            //     value: new Bignumber(546).toNumber()
-            // }];
+            let targets = [{
+                address: data.address,
+                value: new Bignumber(data.amount).toNumber()
+            }];
 
             let feeRate = await this.getFeeRate(data.feePriority);
-            let { inputs, outputs, fee } = coinSelect(utxos, [], feeRate);
-            // console.log("coinSelect result ==>", inputs, outputs, fee)
+            let { inputs, outputs, fee } = coinSelect(utxos, targets, feeRate);
+            console.log("coinSelect result ==>", inputs, outputs, fee)
             if (!inputs || !outputs) {
                 throw new Error('tansfer data error');
             }
@@ -215,6 +222,69 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
         return feeRate;
     }
 
+    //代付地址向发送地址转最少量btc(546聪明)+手续费
+    async prepareTransfer(data: PrepareTransferDef): Promise<TransferResp> {
+        try {
+            let unspents = await client.command('listunspent', 0, 99999999, [data.payedKeyPair.address]);
+            // console.log('listunspent ==>', unspents)
+            if (unspents.length === 0) {
+                throw new Error('listunspent is empty');
+            }
+
+            // 组织psbt数据
+            let psbt = new Psbt({ network: networks.testnet });
+            let fee = new Bignumber(data.fee);
+            let total = new Bignumber(0);
+            let amount = new Bignumber(546).plus(fee);
+            let trans = amount.plus(fee);
+            let rest = new Bignumber(0);
+            for (let unspent of unspents) {
+                let txhex = await client.command('getrawtransaction', unspent.txid);
+                psbt.addInput({
+                    hash: unspent.txid,
+                    index: unspent.vout,
+                    nonWitnessUtxo: Buffer.from(txhex, 'hex')
+                });
+
+                total = total.plus(new Bignumber(unspent.amount).div(PRECISION));
+                if (total.gte(trans)) {
+                    rest = total.minus(trans);
+                    break;
+                }
+            }
+            if (total.lt(trans)) {
+                throw new Error('not enough balance');
+            }
+
+            psbt.addOutput({
+                address: data.keyPair.address,
+                value: amount.toNumber()
+            });
+            if (rest.times(PRECISION).toNumber() > 0) {
+                psbt.addOutput({
+                    address: data.payedKeyPair.address,
+                    value: rest.toNumber()
+                });
+            }
+
+            // 签名psbt
+            const ecpair = ECPair.fromPrivateKey(Buffer.from(data.payedKeyPair.privateKey, 'hex'), { network: networks.testnet });
+            psbt.signAllInputs(ecpair);
+            psbt.validateSignaturesOfAllInputs();
+            psbt.finalizeAllInputs();
+            const psbthash = psbt.extractTransaction().toHex();
+            // console.log('psbthash ==>', psbthash)
+
+            let txid = await client.command('sendrawtransaction', psbthash);
+            console.log('sendrawtransaction ==>', txid)
+
+            return { success: true, txId: txid };
+        } catch (error) {
+            console.log(error)
+            return { success: false, error };
+        }
+    }
+
     async transferWithFee(data: TransferWithFeeDef): Promise<TransferResp> {
         try {
             let balance = await client.command('omni_getbalance', data.keyPair.address, PROPERTY);
@@ -240,9 +310,6 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
                     scriptPubKey: unspent.scriptPubKey,
                 });
             }
-
-            // let amount = new Bignumber(data.amount).times(PRECISION).toFixed(8);
-            // console.log('amount ==>', amount);
 
             let payload = await client.command('omni_createpayload_simplesend', PROPERTY, amount);
             // console.log('omni_createpayload_simplesend ==>', payload);
@@ -276,6 +343,7 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
         }
     }
 
+    //代付地址(btc)+发送地址(omni)一起向接受地址转账
     async transferWithPayed(data: TransferWithPayedDef): Promise<TransferResp> {
         try {
             let balance = await client.command('omni_getbalance', data.keyPair.address, PROPERTY);
@@ -286,7 +354,7 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
                 throw new Error('not enough balance');
             }
 
-            let unspents = await client.command('listunspent', 0, 99999999, [data.payedKeyPair.address, data.keyPair.address]);
+            let unspents = await client.command('listunspent', 0, 99999999, [data.keyPair.address, data.payedKeyPair.address]);
             console.log('listunspent ==>', unspents)
             if (unspents.length === 0) {
                 throw new Error('listunspent is empty');
@@ -337,4 +405,5 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
     async getFeeRange(): Promise<FeeRangeDef> {
         return { min: '200000000', max: '500000000', default: '200000000' };
     }
+
 }

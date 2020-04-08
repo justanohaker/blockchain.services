@@ -1,6 +1,9 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { IService } from '../common/service.interface';
-import { TransferDef, TransferResp, BalanceResp, BitcoinTransaction, TransferWithFeeDef, FeeRangeDef, TransferWithPayedDef } from '../common/types';
+import {
+    TransferDef, TransferResp, BalanceResp, BitcoinTransaction, TransferWithFeeDef,
+    FeeRangeDef, TransferWithPayedDef, PrepareTransferDef
+} from '../common/types';
 import { FeePriority } from 'src/libs/types';
 
 import { Buffer } from 'buffer';
@@ -59,8 +62,10 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
             }
 
             this.lastHash = lastBlockHash;
-            let block = await client.command('getblock', lastBlockHash)
+
+            let block = await client.command('getblock', lastBlockHash);
             // console.log('getblock =2=>', block)
+            this.provider.onNewBlock({ height: block.height });
 
             let txs = [];
             for (let txid of block.tx) {
@@ -134,11 +139,6 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
         }
     }
 
-    /**
-     * @note override
-     * 获取账号余额信息
-     * @param addresses - 地址集合
-     */
     async getBalance(addresses: string[]): Promise<BalanceResp> {
         const result: BalanceResp = { success: true, result: [] };
 
@@ -163,10 +163,6 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
         return result;
     }
 
-    /**
-     * @note override
-     * @param data 
-     */
     async transfer(data: TransferDef): Promise<TransferResp> {
         try {
             let unspents = await client.command('listunspent', 0, 99999999, [data.keyPair.address]);
