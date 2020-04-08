@@ -330,7 +330,7 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
         try {
             const transfer = await this.IService?.prepareTransfer({
                 payedKeyPair,
-                senderKeyPair,
+                keyPair: senderKeyPair,
                 address,
                 amount,
                 fee

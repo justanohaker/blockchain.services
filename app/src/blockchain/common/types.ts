@@ -41,8 +41,8 @@ export type FeeRangeDef = {
  * 代付交易费与不足转账金额数据定义
  */
 export type PrepareTransferDef = {
-    payedKeyPair: AccountKeyPair;            // 代付账号信息
-    senderKeyPair: AccountKeyPair;      // 转出账号信息
+    payedKeyPair: AccountKeyPair;       // 代付账号信息
+    keyPair: AccountKeyPair;            // 转出账号信息
     address: string;                    // 转入地址
     amount: string;                     // 实际转账金额
     fee: string;                        // 实际转账指定交易费
