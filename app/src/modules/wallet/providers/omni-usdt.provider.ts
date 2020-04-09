@@ -1,6 +1,8 @@
 import { Injectable, OnApplicationBootstrap, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as fs from 'fs';
+import * as path from 'path';
 import { Token } from '../../../libs/types';
 import { addressIsBitcoin } from '../../../libs/helpers/addressHelper';
 import { bipWIFFromxPriv, bipHexPrivFromxPriv } from '../../../libs/helpers/bipHelper';
@@ -36,6 +38,7 @@ const MaxConfirmed = 1;
 export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModuleDestroy, OnApplicationBootstrap {
     public readonly Logger: Logger = new Logger('OmniUsdtProvider', true);
     private schedHandler: NodeJS.Timeout;
+    private tasksFilePath: string;
     constructor(
         @InjectRepository(Client) public readonly ClientRepo: Repository<Client>,
         @InjectRepository(User) public readonly UserRepo: Repository<User>,
@@ -57,6 +60,8 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
 
         this.transferScheduler = this.transferScheduler.bind(this);
         // this.schedHandler = setTimeout(this.transferScheduler, SchedTimeout);
+
+        this.tasksFilePath = path.resolve(path.join(__dirname, 'omni_usdt.tasks.dat'));
     }
 
     // BEGIN: override properties
@@ -71,12 +76,36 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
 
     async onModuleInit() {
         this.schedHandler = setTimeout(this.transferScheduler, SchedTimeout);
+
+        const storedFileData = fs.readFileSync(this.tasksFilePath, { encoding: 'utf8' });
+        try {
+            const tasksConv = new Map();
+            const tasksRaw = JSON.parse(storedFileData);
+            for (const task of tasksRaw) {
+                if (task.length < 2) { continue; }
+                tasksConv.set(task[0], task[1]);
+            }
+            this.tasks = tasksConv;
+        } catch (error) {
+            this.Logger.log(`load tasks data failed. error:${error}`);
+        }
     }
 
     async onModuleDestroy() {
         if (this.schedHandler) {
             clearTimeout(this.schedHandler);
             this.schedHandler = null;
+        }
+
+        try {
+            const tasksConv = [];
+            for (const entry of this.tasks) {
+                tasksConv.push(entry);
+            }
+            const tasksStr = JSON.stringify(tasksConv, null, 2);
+            fs.writeFileSync(this.tasksFilePath, tasksStr, { encoding: 'utf8' });
+        } catch (error) {
+            this.Logger.log(`store tasks data failed. error:${error}`);
         }
     }
 
@@ -218,7 +247,7 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
                 const { clientId, accountId, amount, fee, preTxId, preTxConfirmed, } = task;
                 const sender = await this.retrieveAccount(clientId, accountId);
                 const payAccount = await this.ClientPayedRepo.findOne({ clientId, token: this.Token });
-                this.Logger.log(`transferSched[start]-${JSON.stringify(task)},${sender.address}`);
+                preTxId == null && this.Logger.log(`transferSched[start]-${JSON.stringify(task)},${sender.address}`);
                 if (preTxId == null) {
                     // TODO
                     this.Logger.log(`transferSched[checkCondition]-${sender.address},${amount},${fee}`)
