@@ -29,6 +29,13 @@ import { OmniUsdtProvider } from './providers/omni-usdt.provider';
         EthProvider,
         Erc20UsdtProvider,
         OmniUsdtProvider
+    ],
+    exports: [
+        NullProvider,
+        BtcProvider,
+        EthProvider,
+        Erc20UsdtProvider,
+        OmniUsdtProvider
     ]
 })
 export class WalletModule { }

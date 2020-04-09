@@ -8,6 +8,10 @@ import { RegisterClientRespDto, GetTokenRespDto } from './auth.dto';
 import { RespErrorCode } from '../../libs/responseHelper';
 import { bipNewMnemonic, bipPrivpubFromMnemonic, bipGetAddressFromXPub } from '../../libs/helpers/bipHelper';
 import { Token } from 'src/libs/types';
+import { BtcProvider } from '../wallet/providers/btc.provider';
+import { EthProvider } from '../wallet/providers/eth.provider';
+import { Erc20UsdtProvider } from '../wallet/providers/erc20-usdt.provider';
+import { OmniUsdtProvider } from '../wallet/providers/omni-usdt.provider';
 
 @Injectable()
 export class AuthService {
@@ -15,6 +19,10 @@ export class AuthService {
         private readonly jwtService: JwtService,
         @InjectRepository(Client) private readonly clientRepo: Repository<Client>,
         @InjectRepository(ClientPayed) private readonly payedRepo: Repository<ClientPayed>,
+        private readonly btcProvider: BtcProvider,
+        private readonly ethProvider: EthProvider,
+        private readonly erc20UsdtProvider: Erc20UsdtProvider,
+        private readonly omniUsdtProvider: OmniUsdtProvider
     ) { }
 
     async register(
@@ -73,6 +81,8 @@ export class AuthService {
             payedIns.balance = '0';
             payedIns.token = Token.BITCOIN;
             await this.payedRepo.save(payedIns);
+
+            this.btcProvider.onNewAccount([address]);
         }
         // Omni-USDT
         {
@@ -86,6 +96,8 @@ export class AuthService {
             payedIns.balance = '0';
             payedIns.token = Token.OMNI_USDT;
             await this.payedRepo.save(payedIns);
+
+            this.omniUsdtProvider.onNewAccount([address]);
         }
         // ETH
         {
@@ -99,6 +111,8 @@ export class AuthService {
             payedIns.balance = '0';
             payedIns.token = Token.ETHEREUM;
             await this.payedRepo.save(payedIns);
+
+            this.ethProvider.onNewAccount([address]);
         }
         // ERC20-USDT
         {
@@ -112,6 +126,8 @@ export class AuthService {
             payedIns.balance = '0';
             payedIns.token = Token.ERC20_USDT;
             await this.payedRepo.save(payedIns);
+
+            this.erc20UsdtProvider.onNewAccount([address]);
         }
     }
 }
