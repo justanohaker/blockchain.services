@@ -218,20 +218,17 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
                 const { clientId, accountId, amount, fee, preTxId, preTxConfirmed, } = task;
                 const sender = await this.retrieveAccount(clientId, accountId);
                 const payAccount = await this.ClientPayedRepo.findOne({ clientId, token: this.Token });
-                // this.Logger.log(`transferSched[init]-${JSON.stringify(task)},${sender.address}`);
+                this.Logger.log(`transferSched[start]-${JSON.stringify(task)},${sender.address}`);
                 if (preTxId == null) {
                     // TODO
-                    // this.Logger.log(`transferSched[needPrepareTransferAction]-${sender.address},${amount},${fee}`)
+                    this.Logger.log(`transferSched[checkCondition]-${sender.address},${amount},${fee}`)
                     if (await this.needPrepareTransferAction(sender.address, amount, fee)) {
-                        try {
-                            this.Logger.log(`transferSched[postTransfer1]-${JSON.stringify(sender)},${JSON.stringify(task)}`);
-                            await this.postTransfer(payAccount, sender, task);
-                            tasks.splice(0, 1);
-                        } catch (error) { }
+                        this.Logger.log(`transferSched[conditionTrue]-${JSON.stringify(sender)},${JSON.stringify(task)}`);
+                        await this.postTransfer(payAccount, sender, task);
+                        tasks.splice(0, 1);
                     } else {
                         try {
-
-                            // this.Logger.log(`transferSched[prepareTransfer]-${JSON.stringify(payAccount)},${JSON.stringify(sender)},${JSON.stringify(task)}`)
+                            this.Logger.log(`transferSched[conditionFalse]-${JSON.stringify(payAccount)},${JSON.stringify(sender)},${JSON.stringify(task)}`)
                             const txId = await this.prepareTransfer(payAccount, sender, task);
                             if (txId) {
                                 task.preTxId = txId;
@@ -242,12 +239,9 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
                     continue;
                 }
                 if (preTxId && preTxConfirmed >= MaxConfirmed) {
-                    // TODO
-                    try {
-                        // this.Logger.log(`transferSched[postTransfer2]-${JSON.stringify(sender)},${JSON.stringify(task)}`);
-                        await this.postTransfer(payAccount, sender, task);
-                        tasks.splice(0, 1);
-                    } catch (error) { }
+                    this.Logger.log(`transferSched[prepareTransferConfirmed]-${JSON.stringify(sender)},${JSON.stringify(task)}`);
+                    await this.postTransfer(payAccount, sender, task);
+                    tasks.splice(0, 1);
                     continue;
                 }
             }
@@ -276,37 +270,55 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
             wif: await bipWIFFromxPriv(account.privkey, this.Token),
             address: account.address
         } as AccountKeyPair;
-        const transfer = await this.IService?.transferWithFee({
-            payedKeyPair,
-            keyPair: senderKeyPair,
-            address,
-            amount,
-            fee
-        });
-        const { success, error, txId } = transfer;
-        if (success) {
-            // TODO
-            const notification = {
-                status: true,
-                accountId,
-                address: account.address,
-                businessId,
-                txId
+        try {
+            const transfer = await this.IService?.transferWithFee({
+                payedKeyPair,
+                keyPair: senderKeyPair,
+                address,
+                amount,
+                fee
+            });
+            const { success, error, txId } = transfer;
+            if (success) {
+                // TODO
+                const notification = {
+                    status: true,
+                    accountId,
+                    address: account.address,
+                    businessId,
+                    txId
+                }
+                this.Logger.log(`postTransfer:${account.clientId},${account.accountId},${notification}`);
+                this.pushNotificationWithURI(
+                    callbackURI,
+                    PushEventType.TransactionCreated,
+                    notification
+                );
+            } else {
+                // TODO: 这里失败的情况是否需要尝试
+                const notification = {
+                    status: false,
+                    accountId,
+                    address: account.address,
+                    businessId,
+                    error
+                };
+                this.Logger.log(`postTransfer:${account.clientId},${account.accountId},${notification}`);
+                this.pushNotificationWithURI(
+                    callbackURI,
+                    PushEventType.TransactionCreated,
+                    notification
+                );
             }
-            this.pushNotificationWithURI(
-                callbackURI,
-                PushEventType.TransactionCreated,
-                notification
-            );
-        } else {
-            // TODO: 这里失败的情况是否需要尝试
+        } catch (error) {
             const notification = {
                 status: false,
                 accountId,
                 address: account.address,
                 businessId,
-                error
+                error: `${error}`,
             };
+            this.Logger.log(`postTransfer:${account.clientId},${account.accountId},${notification}`);
             this.pushNotificationWithURI(
                 callbackURI,
                 PushEventType.TransactionCreated,
@@ -340,8 +352,10 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
                 // TODO: 这里的失败的情况是否需要尝试
                 throw new Error(`${error}`);
             }
+            this.Logger.log(`prepareTransfer[success]:${account.clientId},${account.accountId},${txId}`);
             return txId;
         } catch (error) {
+            this.Logger.log(`prepareTransfer[failure]:${account.clientId},${account.accountId},${error}`);
             throw error;
         }
     }
