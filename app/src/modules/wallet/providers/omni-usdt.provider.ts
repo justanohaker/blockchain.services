@@ -32,7 +32,7 @@ import {
 } from './types';
 
 const SchedTimeout = 500;
-const MaxConfirmed = 1;
+const MaxConfirmed = 2;
 
 @Injectable()
 export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModuleDestroy, OnApplicationBootstrap {
@@ -61,7 +61,7 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
         this.transferScheduler = this.transferScheduler.bind(this);
         // this.schedHandler = setTimeout(this.transferScheduler, SchedTimeout);
 
-        this.tasksFilePath = path.resolve(path.join(__dirname, 'omni_usdt.tasks.dat'));
+        this.tasksFilePath = path.resolve(path.join(__dirname, '../../../../', 'omni_usdt.tasks.dat'));
     }
 
     // BEGIN: override properties
@@ -77,10 +77,11 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
     async onModuleInit() {
         this.schedHandler = setTimeout(this.transferScheduler, SchedTimeout);
 
-        const storedFileData = fs.readFileSync(this.tasksFilePath, { encoding: 'utf8' });
         try {
+            const storedFileData = fs.readFileSync(this.tasksFilePath, { encoding: 'utf8' });
             const tasksConv = new Map();
             const tasksRaw = JSON.parse(storedFileData);
+            this.Logger.log(`onModuleInit[tasks]:`, JSON.stringify(tasksRaw));
             for (const task of tasksRaw) {
                 if (task.length < 2) { continue; }
                 tasksConv.set(task[0], task[1]);
@@ -104,6 +105,7 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
             }
             const tasksStr = JSON.stringify(tasksConv, null, 2);
             fs.writeFileSync(this.tasksFilePath, tasksStr, { encoding: 'utf8' });
+            this.Logger.log('onModuleDestroy[tasks]:', JSON.stringify(tasksStr));
         } catch (error) {
             this.Logger.log(`store tasks data failed. error:${error}`);
         }
@@ -317,7 +319,7 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
                     businessId,
                     txId
                 }
-                this.Logger.log(`postTransfer:${account.clientId},${account.accountId},${notification}`);
+                this.Logger.log(`postTransfer[success]:${account.clientId},${account.accountId},${JSON.stringify(notification)}`);
                 this.pushNotificationWithURI(
                     callbackURI,
                     PushEventType.TransactionCreated,
@@ -332,7 +334,7 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
                     businessId,
                     error
                 };
-                this.Logger.log(`postTransfer:${account.clientId},${account.accountId},${notification}`);
+                this.Logger.log(`postTransfer[failure]:${account.clientId},${account.accountId},${JSON.stringify(notification)}`);
                 this.pushNotificationWithURI(
                     callbackURI,
                     PushEventType.TransactionCreated,
@@ -347,7 +349,7 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
                 businessId,
                 error: `${error}`,
             };
-            this.Logger.log(`postTransfer:${account.clientId},${account.accountId},${notification}`);
+            this.Logger.log(`postTransfer[exception]:${account.clientId},${account.accountId},${JSON.stringify(notification)}`);
             this.pushNotificationWithURI(
                 callbackURI,
                 PushEventType.TransactionCreated,
