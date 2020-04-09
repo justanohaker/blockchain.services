@@ -222,6 +222,27 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
         return feeRate;
     }
 
+    async isBalanceEnought(address: string, amount: string, fee: string): Promise<boolean> {
+        try {
+            let total = new Bignumber(fee).plus(546);
+            let groupsList = await client.command('listaddressgroupings');
+            for (let groups of groupsList) {
+                for (let group of groups) {
+                    if (group.includes(address)) {
+                        let balance = new Bignumber(group[1]).div(PRECISION);
+                        if(new Bignumber(balance).gte(total)){
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false
+        } catch (error) {
+            throw error
+        }
+    }
+
     //代付地址向发送地址转最少量btc(546聪明)+手续费
     async prepareTransfer(data: PrepareTransferDef): Promise<TransferResp> {
         try {
