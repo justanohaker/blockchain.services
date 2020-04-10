@@ -2,7 +2,7 @@ import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { IService } from '../../common/service.interface';
 import {
     TransferDef, TransferResp, BalanceResp, OmniUsdtTransactin, TransferWithFeeDef,
-    TransferWithPayedDef, FeeRangeDef, PrepareTransferDef
+    TransferWithPayedDef, FeeRangeDef, PrepareTransferDef, TransactionQueryResultDef
 } from '../../../blockchain/common/types';
 import { Psbt, networks, ECPair } from 'bitcoinjs-lib';
 import { FeePriority } from 'src/libs/types';
@@ -127,6 +127,24 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
         return result;
     }
 
+    async getTransactionInfo(txId: string): Promise<TransactionQueryResultDef> {
+        const result: TransactionQueryResultDef = { blocked: false, blockHeight: -1 };
+        try {
+            let tx = await client.command('omni_gettransaction', txId);
+            if (tx.confirmations > 0) {
+                result.blocked = true;
+                result.blockHeight = tx.block;
+            }
+        } catch (error) {
+            throw error;
+        }
+        return result;
+    }
+
+    async getFeeRange(): Promise<FeeRangeDef> {
+        return { min: '200000000', max: '500000000', default: '200000000' };
+    }
+
     async transfer(data: TransferDef): Promise<TransferResp> {
         try {
             let unspents = await client.command('listunspent', 0, 99999999, [data.keyPair.address]);
@@ -222,81 +240,59 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
         return feeRate;
     }
 
-    async isBalanceEnought(address: string, amount: string, fee: string): Promise<boolean> {
-        try {
-            let total = new Bignumber(fee).plus(546);
-            let groupsList = await client.command('listaddressgroupings');
-            for (let groups of groupsList) {
-                for (let group of groups) {
-                    if (group.includes(address)) {
-                        let balance = new Bignumber(group[1]).div(PRECISION);
-                        if(new Bignumber(balance).gte(total)){
-                            return true;
-                        }
-                    }
-                }
-            }
-
-            return false
-        } catch (error) {
-            throw error
-        }
-    }
-
-    //代付地址向发送地址转最少量btc(546聪明)+手续费
+    // 预付阶段，代付地址向发送地址转固定金额（最小转账金额546）的btc,给发送地址做手续费用
     async prepareTransfer(data: PrepareTransferDef): Promise<TransferResp> {
         try {
             let unspents = await client.command('listunspent', 0, 99999999, [data.payedKeyPair.address]);
-            // console.log('listunspent ==>', unspents)
+            console.log('listunspent ==>', unspents)
             if (unspents.length === 0) {
                 throw new Error('listunspent is empty');
             }
 
-            // 组织psbt数据
-            let psbt = new Psbt({ network: networks.testnet });
-            let fee = new Bignumber(data.fee);
-            let total = new Bignumber(0);
-            let amount = new Bignumber(546).plus(fee);
-            let trans = amount.plus(fee);
-            let rest = new Bignumber(0);
+            let feeRate = await this.getFeeRate(FeePriority.HIGH);
+            let utxos = [];
             for (let unspent of unspents) {
                 let txhex = await client.command('getrawtransaction', unspent.txid);
-                psbt.addInput({
-                    hash: unspent.txid,
-                    index: unspent.vout,
+                utxos.push({
+                    txid: unspent.txid,
+                    vout: unspent.vout,
+                    value: new Bignumber(unspent.amount).div(PRECISION).toNumber(),
                     nonWitnessUtxo: Buffer.from(txhex, 'hex')
                 });
-
-                total = total.plus(new Bignumber(unspent.amount).div(PRECISION));
-                if (total.gte(trans)) {
-                    rest = total.minus(trans);
-                    break;
-                }
             }
-            if (total.lt(trans)) {
-                throw new Error('not enough balance');
-            }
-
-            psbt.addOutput({
+            let targets = [{
                 address: data.keyPair.address,
-                value: amount.toNumber()
-            });
-            if (rest.times(PRECISION).toNumber() > 0) {
-                psbt.addOutput({
-                    address: data.payedKeyPair.address,
-                    value: rest.toNumber()
-                });
+                value: new Bignumber(546).toNumber()
+            }];
+            let { inputs, outputs, fee } = coinSelect(utxos, targets, feeRate);
+            if (!inputs || !outputs) {
+                throw new Error('tansfer data error');
             }
 
-            // 签名psbt
+            let psbt = new Psbt({ network: networks.testnet });
+            inputs.forEach(input =>
+                psbt.addInput({
+                    hash: input.txid,
+                    index: input.vout,
+                    nonWitnessUtxo: input.nonWitnessUtxo,
+                })
+            );
+            outputs.forEach(output => {
+                if (!output.address) {
+                    output.address = data.payedKeyPair.address;
+                }
+                psbt.addOutput({
+                    address: output.address,
+                    value: output.value,
+                });
+            });
             const ecpair = ECPair.fromPrivateKey(Buffer.from(data.payedKeyPair.privateKey, 'hex'), { network: networks.testnet });
             psbt.signAllInputs(ecpair);
             psbt.validateSignaturesOfAllInputs();
             psbt.finalizeAllInputs();
-            const psbthash = psbt.extractTransaction().toHex();
-            // console.log('psbthash ==>', psbthash)
+            const txhash = psbt.extractTransaction().toHex();
 
-            let txid = await client.command('sendrawtransaction', psbthash);
+            let txid = await client.command('sendrawtransaction', txhash);
             console.log('sendrawtransaction ==>', txid)
 
             return { success: true, txId: txid };
@@ -306,6 +302,7 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
         }
     }
 
+    //转账阶段，代付地址和发送地址中指定为fee的交易一起完成转账，最终找零都放回代付地址
     async transferWithFee(data: TransferWithFeeDef): Promise<TransferResp> {
         try {
             let balance = await client.command('omni_getbalance', data.keyPair.address, PROPERTY);
@@ -323,7 +320,28 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
             }
 
             let utxos = [];
+            let hasFeeUnspent = false;
             for (let unspent of unspents) {
+                if (unspent.txid === data.inputTxId) {
+                    utxos.push({
+                        txid: unspent.txid,
+                        vout: unspent.vout,
+                        value: unspent.amount,
+                        scriptPubKey: unspent.scriptPubKey,
+                    });
+                    hasFeeUnspent = true;
+                }
+            }
+            if (!hasFeeUnspent) {
+                throw new Error('listunspent not found tx for fee');
+            }
+
+            let unspentsPayed = await client.command('listunspent', 0, 99999999, [data.payedKeyPair.address]);
+            console.log('listunspent ==>', unspentsPayed)
+            if (unspentsPayed.length === 0) {
+                throw new Error('payed listunspent is empty');
+            }
+            for (let unspent of unspentsPayed) {
                 utxos.push({
                     txid: unspent.txid,
                     vout: unspent.vout,
@@ -344,67 +362,10 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
             let rawtx2 = await client.command('omni_createrawtx_reference', rawtx, data.address);
             // console.log('omni_createrawtx_reference ==>', rawtx2);
 
-            let fee = new Bignumber(data.fee).times(PRECISION).toNumber();
-            let rawtx3 = await client.command('omni_createrawtx_change', rawtx2, utxos, data.keyPair.address, fee);
-            // console.log('omni_createrawtx_change ==>', rawtx3);
-
-            let txsign = await client.command('signrawtransactionwithkey', rawtx3, [data.keyPair.wif]);
-            // console.log('signrawtransactionwithkey ==>', txsign)
-
-            // let tx = await client.command('decoderawtransaction', rawtx3, false)
-            // console.log('decoderawtransaction ==>', JSON.stringify(tx))
-
-            let txid = await client.command('sendrawtransaction', txsign.hex);
-            console.log('sendrawtransaction ==>', txid)
-
-            return { success: true, txId: txid };
-        } catch (error) {
-            console.log(error)
-            return { success: false, error };
-        }
-    }
-
-    //代付地址(btc)+发送地址(omni)一起向接受地址转账
-    async transferWithPayed(data: TransferWithPayedDef): Promise<TransferResp> {
-        try {
-            let balance = await client.command('omni_getbalance', data.keyPair.address, PROPERTY);
-            // console.log('omni_getbalance ==>', balance)
-            let amount = new Bignumber(data.amount).times(PRECISION).toFixed(8);
-            // console.log('amount ==>', amount);
-            if (balance.balance < amount) {
-                throw new Error('not enough balance');
-            }
-
-            let unspents = await client.command('listunspent', 0, 99999999, [data.keyPair.address, data.payedKeyPair.address]);
-            console.log('listunspent ==>', unspents)
-            if (unspents.length === 0) {
-                throw new Error('listunspent is empty');
-            }
-
-            let utxos = [];
-            for (let unspent of unspents) {
-                utxos.push({
-                    txid: unspent.txid,
-                    vout: unspent.vout,
-                    value: unspent.amount,
-                    scriptPubKey: unspent.scriptPubKey,
-                });
-            }
-
-            let payload = await client.command('omni_createpayload_simplesend', PROPERTY, amount);
-            // console.log('omni_createpayload_simplesend ==>', payload);
-
-            let txhash = await client.command('createrawtransaction', utxos, {});
-            // console.log('createrawtransaction ==>', txhash)
-
-            let rawtx = await client.command('omni_createrawtx_opreturn', txhash, payload);
-            // console.log('omni_createrawtx_opreturn ==>', rawtx);
-
-            let rawtx2 = await client.command('omni_createrawtx_reference', rawtx, data.address);
-            // console.log('omni_createrawtx_reference ==>', rawtx2);
-
-            let fee = new Bignumber(data.fee).times(PRECISION).toNumber();
-            let rawtx3 = await client.command('omni_createrawtx_change', rawtx2, utxos, data.payedKeyPair.address, fee);
+            let feeRate = await this.getFeeRate(FeePriority.NORMAL);
+            let fee = (utxos.length * 148 + 3 * 34 + 10) * feeRate;
+            let fee0 = new Bignumber(fee).times(PRECISION).toNumber();
+            let rawtx3 = await client.command('omni_createrawtx_change', rawtx2, utxos, data.payedKeyPair.address, fee0);
             // console.log('omni_createrawtx_change ==>', rawtx3);
 
             let txsign = await client.command('signrawtransactionwithkey', rawtx3, [data.payedKeyPair.wif, data.keyPair.wif]);
@@ -423,8 +384,25 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
         }
     }
 
-    async getFeeRange(): Promise<FeeRangeDef> {
-        return { min: '200000000', max: '500000000', default: '200000000' };
+    async isBalanceEnought(address: string, amount: string, fee: string): Promise<boolean> {
+        try {
+            let total = new Bignumber(fee).plus(546);
+            let groupsList = await client.command('listaddressgroupings');
+            for (let groups of groupsList) {
+                for (let group of groups) {
+                    if (group.includes(address)) {
+                        let balance = new Bignumber(group[1]).div(PRECISION);
+                        if (new Bignumber(balance).gte(total)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false;
+        } catch (error) {
+            throw error;
+        }
     }
 
 }
