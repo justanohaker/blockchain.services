@@ -116,6 +116,24 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
 
         const allAddresses = await this.getAddresses();
         this.IService?.onUpdateBalances(allAddresses);
+
+        for (const key of this.tasks.keys()) {
+            const tasks = this.tasks.get(key);
+            if (tasks.length <= 0) {
+                continue
+            }
+
+            const task = tasks[0];
+            if (task.preTxId && task.preTxIdBlockedHeight < 0) {
+                // 获取交易打包高度
+                try {
+                    const result = await this.IService?.getTransactionInfo(task.preTxId);
+                    if (result.blocked) {
+                        task.preTxIdBlockedHeight = result.blockHeight;
+                    }
+                } catch (error) { }
+            }
+        }
     }
 
     private async txCheck(transaction: Transaction): Promise<boolean> {
@@ -231,6 +249,7 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
             businessId,
             callbackURI,
             preTxId: null,
+            preTxIdBlockedHeight: -1,
             preTxConfirmed: -1,
         });
 
@@ -252,26 +271,34 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
                 preTxId == null && this.Logger.log(`transferSched[start]-${JSON.stringify(task)},${sender.address}`);
                 if (preTxId == null) {
                     // TODO
-                    this.Logger.log(`transferSched[checkCondition]-${sender.address},${amount},${fee}`)
-                    if (await this.needPrepareTransferAction(sender.address, amount, fee)) {
-                        this.Logger.log(`transferSched[conditionTrue]-${JSON.stringify(sender)},${JSON.stringify(task)}`);
-                        await this.postTransfer(payAccount, sender, task);
-                        tasks.splice(0, 1);
-                    } else {
-                        try {
-                            this.Logger.log(`transferSched[conditionFalse]-${JSON.stringify(payAccount)},${JSON.stringify(sender)},${JSON.stringify(task)}`)
-                            const txId = await this.prepareTransfer(payAccount, sender, task);
-                            if (txId) {
-                                task.preTxId = txId;
-                                task.preTxConfirmed = 0;
-                            }
-                        } catch (error) { }
-                    }
+                    // this.Logger.log(`transferSched[checkCondition]-${sender.address},${amount},${fee}`)
+                    // if (await this.needPrepareTransferAction(sender.address, amount, fee)) {
+                    //     this.Logger.log(`transferSched[conditionTrue]-${JSON.stringify(sender)},${JSON.stringify(task)}`);
+                    //     await this.postTransfer(payAccount, sender, task);
+                    //     tasks.splice(0, 1);
+                    // } else {
+                    //     try {
+                    //         this.Logger.log(`transferSched[conditionFalse]-${JSON.stringify(payAccount)},${JSON.stringify(sender)},${JSON.stringify(task)}`)
+                    //         const txId = await this.prepareTransfer(payAccount, sender, task);
+                    //         if (txId) {
+                    //             task.preTxId = txId;
+                    //             task.preTxConfirmed = 0;
+                    //         }
+                    //     } catch (error) { }
+                    // }
+                    try {
+                        this.Logger.log(`transferSched[prepareTransfer]-${JSON.stringify(payAccount)},${JSON.stringify(sender)},${JSON.stringify(task)}`)
+                        const txId = await this.prepareTransfer(payAccount, sender, task);
+                        if (txId) {
+                            task.preTxId = txId;
+                            task.preTxConfirmed = 0;
+                        }
+                    } catch (error) { }
                     continue;
                 }
                 if (preTxId && preTxConfirmed >= MaxConfirmed) {
                     this.Logger.log(`transferSched[prepareTransferConfirmed]-${JSON.stringify(sender)},${JSON.stringify(task)}`);
-                    await this.postTransfer(payAccount, sender, task);
+                    await this.postTransfer(payAccount, sender, preTxId, task);
                     tasks.splice(0, 1);
                     continue;
                 }
@@ -289,7 +316,12 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
         return result;
     }
 
-    private async postTransfer(payAccount: ClientPayed, account: Account, task: TransferInternalTask): Promise<void> {
+    private async postTransfer(
+        payAccount: ClientPayed,
+        account: Account,
+        prepareTxId: string,
+        task: TransferInternalTask
+    ): Promise<void> {
         const { accountId, address, amount, fee, businessId, callbackURI } = task;
         const payedKeyPair = {
             privateKey: await bipHexPrivFromxPriv(payAccount.privkey, this.Token),
@@ -307,7 +339,8 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
                 keyPair: senderKeyPair,
                 address,
                 amount,
-                fee
+                fee,
+                inputTxId: prepareTxId
             });
             const { success, error, txId } = transfer;
             if (success) {
@@ -392,6 +425,26 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
     }
 
     // callbacks
+    async onNewTransaction(transactions: Transaction[]): Promise<void> {
+        await super.onNewTransaction(transactions);
+
+        const txIds: Map<string, Transaction> = new Map();
+        transactions.forEach((value: Transaction) => txIds.set(value.txId, value));
+
+        for (const key of this.tasks.keys()) {
+            const tasks = this.tasks.get(key);
+            if (tasks.length <= 0) {
+                continue;
+            }
+
+            const task = tasks[0];
+            if (task.preTxId && txIds.has(task.preTxId)) {
+                const transaction = txIds.get(task.preTxId);
+                task.preTxIdBlockedHeight = transaction.blockHeight;
+            }
+        }
+    }
+
     async onNewBlock(block: BlockDef): Promise<void> {
         await super.onNewBlock(block);
 
@@ -402,8 +455,9 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
             }
 
             const task = tasks[0];
-            if (task.preTxId) {
-                task.preTxConfirmed++;
+            if (task.preTxId && task.preTxIdBlockedHeight > 0) {
+                task.preTxConfirmed = block.height - task.preTxIdBlockedHeight;
+                // task.preTxConfirmed++;
             }
         }
     }

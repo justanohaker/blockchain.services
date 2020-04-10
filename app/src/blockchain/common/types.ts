@@ -24,6 +24,7 @@ export type TransferDef = TransferBasic & {
 export type TransferWithFeeDef = TransferBasic & {
     payedKeyPair: AccountKeyPair;
     fee: string;                // 指定的交易费值
+    inputTxId: string;          // prepareTransfer交易Id(已打包并满足预设的确认数)
 }
 
 export type TransferWithPayedDef = TransferBasic & {
@@ -144,4 +145,9 @@ export type Transaction = BitcoinTransaction
 
 export type BlockDef = {
     height: number;
+}
+
+export type TransactionQueryResultDef = {
+    blocked: boolean;                   // 交易是否打包
+    blockHeight?: number;               // 交易打包的高度，只有blocked=true时，此字段才有效
 }

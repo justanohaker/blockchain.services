@@ -34,6 +34,7 @@ export type TransferTask = {
 
 export type TransferInternalTask = TransferTask & {
     preTxId: string;
+    preTxIdBlockedHeight: number;
     preTxConfirmed: number;
 }
 

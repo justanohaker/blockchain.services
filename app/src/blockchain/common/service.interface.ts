@@ -1,4 +1,4 @@
-import { TransferDef, TransferResp, BalanceResp, TransferWithFeeDef, TransferWithPayedDef, FeeRangeDef, PrepareTransferDef } from './types';
+import { TransferDef, TransferResp, BalanceResp, TransferWithFeeDef, TransferWithPayedDef, FeeRangeDef, PrepareTransferDef, TransactionQueryResultDef } from './types';
 import { IServiceProvider } from './service.provider';
 
 const UPDATE_TIMEOUT: number = 2 * 1000;
@@ -58,6 +58,14 @@ export class IService {
      */
     async isBalanceEnought(address: string, amount: string, fee: string): Promise<boolean> {
         // TODO: implemented by subclass!
+        throw new Error('Unimplemented...');
+    }
+
+    /**
+     * 查询交易信息(暂时，是否打包以及打包高度信息)
+     * @param txId - 查询的交易Id
+     */
+    async getTransactionInfo(txId: string): Promise<TransactionQueryResultDef> {
         throw new Error('Unimplemented...');
     }
 
