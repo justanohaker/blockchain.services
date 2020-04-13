@@ -131,10 +131,14 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
         const result: TransactionQueryResultDef = { blocked: false, blockHeight: -1 };
         try {
             let tx = await client.command('omni_gettransaction', txId);
-            if (tx.confirmations > 0) {
-                result.blocked = true;
-                result.blockHeight = tx.block;
-            }
+            // 只要能获取到交易信息，说明交易已经被打包
+            // 在获取交易信息的时候，不需要处理确认数
+            result.blocked = true;
+            result.blockHeight = tx.block;
+            // if (tx.confirmations > 0) {
+            // result.blocked = true;
+            // result.blockHeight = tx.block;
+            // }
         } catch (error) {
             throw error;
         }

@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Erc20UsdtService } from './erc20-usdt.service';
 import { respSuccess, respFailure, RespErrorCode } from 'src/libs/responseHelper';
 import { FeePriority } from 'src/libs/types';
+import { AccountKeyPair } from 'src/blockchain/common/types';
 @Controller('erc20-usdt')
 export class Erc20UsdtController {
 
@@ -24,7 +25,7 @@ export class Erc20UsdtController {
 
         // let res2 = await this.ethService.getBalance(["0xC4100A97dD815626E57A13886650060F914cc782","0x0Dd0C25B0a56564327aE70f0aeD805024084c35F"]);
         // this.logger.log(`test getBalance {${JSON.stringify(res2)}}`);
-        let res3 = await this.usdtService.getTransaction( "0xbda369c119c4b9db2606f8f0770b34104460f5dca3501765a4194b4098727c34" );
+        let res3 = await this.usdtService.getTransaction("0xbda369c119c4b9db2606f8f0770b34104460f5dca3501765a4194b4098727c34");
         this.logger.log(`test getTransaction {${JSON.stringify(res3)}}`);
         // let res4 = await this.usdtService.transfer({
         //     keyPair: {
@@ -44,6 +45,8 @@ export class Erc20UsdtController {
                 wif: '',
                 address: "0xC4100A97dD815626E57A13886650060F914cc782"
             },
+            payedKeyPair: {} as AccountKeyPair,
+            inputTxId: '',
             address: "0xC64f9F5C2fBe9153ED9B414Ebc6a5A47e989c31C",
             amount: "1000000",
             fee: "100000000"
