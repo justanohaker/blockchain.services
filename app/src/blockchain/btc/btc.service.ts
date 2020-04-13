@@ -50,16 +50,13 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
 
     private async monitor() {
         try {
-
-
-            let lastBlockHash = await client.command('getbestblockhash')
+            let lastBlockHash = await client.command('getbestblockhash');
             // console.log('lastBlockHash =1=>', lastBlockHash)
             if (this.lastHash && this.lastHash === lastBlockHash) {// 没有更新区块
-                return
+                return;
             }
 
             this.lastHash = lastBlockHash;
-
             let block = await client.command('getblock', lastBlockHash);
             // console.log('getblock =2=>', block)
             this.provider?.onNewBlock({ height: block.height });
@@ -79,11 +76,12 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
                     txId: tx.txid,
                     blockHeight: block.height,
                     blockTime: tx.blocktime,
-                    fee: tx.fee,
+                    fee: '',
                     vIns: [],
                     vOuts: []
                 };
                 let isRelative = false;
+                let fee = new Bignumber(0);
                 for (let vin of tx.vin) {
                     if (vin.txid) {
                         let txVin = await client.command('getrawtransaction', vin.txid, true);
@@ -94,6 +92,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
                                     address: address,
                                     amount: new Bignumber(vout.value).div(PRECISION).toString()
                                 });
+                                fee = fee.plus(vout.value);
                                 if (this.addresses && this.addresses.includes(address)) {
                                     isRelative = true;
                                 }
@@ -109,6 +108,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
                                 address: address,
                                 amount: new Bignumber(vout.value).div(PRECISION).toString()
                             });
+                            fee = fee.minus(vout.value);
                             if (this.addresses && this.addresses.includes(address)) {
                                 isRelative = true;
                             }
@@ -116,6 +116,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
                     }
                 }
                 if (isRelative) {
+                    btcTx.fee = fee.div(PRECISION).toString();
                     txs.push(btcTx);
                     console.log('tx =7=>:', btcTx)
                 }

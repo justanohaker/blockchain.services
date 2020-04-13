@@ -88,8 +88,8 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
                         typeInt: tx.type_int,
                         sending: tx.sendingaddress,
                         reference: tx.referenceaddress,
-                        amount: tx.amount,
-                        fee: tx.fee
+                        amount: new Bignumber(tx.amount).div(PRECISION).toString(),
+                        fee: new Bignumber(tx.fee).div(PRECISION).toString()
                     };
                     txs.push(omniTx);
                 }
