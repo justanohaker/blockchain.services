@@ -130,23 +130,23 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
         return result;
     }
 
-    async getTransactionInfo(txId: string): Promise<TransactionQueryResultDef> {
-        const result: TransactionQueryResultDef = { blocked: false, blockHeight: -1 };
-        try {
-            let tx = await client.command('omni_gettransaction', txId);
-            // 只要能获取到交易信息，说明交易已经被打包
-            // 在获取交易信息的时候，不需要处理确认数
-            result.blocked = true;
-            result.blockHeight = tx.block;
-            // if (tx.confirmations > 0) {
-            // result.blocked = true;
-            // result.blockHeight = tx.block;
-            // }
-        } catch (error) {
-            throw error;
-        }
-        return result;
-    }
+    // async getTransactionInfo(txId: string): Promise<TransactionQueryResultDef> {
+    //     const result: TransactionQueryResultDef = { blocked: false, blockHeight: -1 };
+    //     try {
+    //         let tx = await client.command('omni_gettransaction', txId);
+    //         // 只要能获取到交易信息，说明交易已经被打包
+    //         // 在获取交易信息的时候，不需要处理确认数
+    //         result.blocked = true;
+    //         result.blockHeight = tx.block;
+    //         // if (tx.confirmations > 0) {
+    //         // result.blocked = true;
+    //         // result.blockHeight = tx.block;
+    //         // }
+    //     } catch (error) {
+    //         throw error;
+    //     }
+    //     return result;
+    // }
 
     async getFeeRange(): Promise<FeeRangeDef> {
         return { min: '200000000', max: '500000000', default: '200000000' };

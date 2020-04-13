@@ -2,7 +2,7 @@ import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { IService } from '../common/service.interface';
 import {
     TransferDef, TransferResp, BalanceResp, BitcoinTransaction, TransferWithFeeDef,
-    FeeRangeDef, TransferWithPayedDef, PrepareTransferDef
+    FeeRangeDef, TransferWithPayedDef, PrepareTransferDef, TransactionQueryResultDef
 } from '../common/types';
 import { FeePriority } from 'src/libs/types';
 
@@ -161,6 +161,18 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
             result.result.push(info);
         }
         console.log('getbalance ==>', result)
+        return result;
+    }
+
+    async getTransactionInfo(txId: string): Promise<TransactionQueryResultDef> {
+        const result: TransactionQueryResultDef = { blocked: false, blockHeight: -1 };
+        try {
+            let tx = await client.command('getrawtransaction', txId, true);
+            result.blocked = true;
+            result.blockHeight = tx.block;
+        } catch (error) {
+            throw error;
+        }
         return result;
     }
 
