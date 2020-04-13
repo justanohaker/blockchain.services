@@ -459,6 +459,7 @@ export class Provider implements IChainProvider, IServiceProvider {
                 accountIns.balance = clientPayed.balance;
                 accountIns.token = clientPayed.token;
                 accountIns.address = clientPayed.address;
+                accountRepo = accountIns;
             }
         }
         return accountRepo;

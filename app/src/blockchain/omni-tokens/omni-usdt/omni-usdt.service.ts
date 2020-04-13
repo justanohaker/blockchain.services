@@ -130,6 +130,20 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
         return result;
     }
 
+    async getTransactionInfo(txId: string): Promise<TransactionQueryResultDef> {
+        const result: TransactionQueryResultDef = { blocked: false, blockHeight: -1 };
+        try {
+            let tx = await client.command('getrawtransaction', txId, true);
+            result.blocked = true;
+            result.blockHeight = tx.block;
+        } catch (error) {
+            // 自己捕获的异常就不需要再抛出了，直接处理成blocked=false即可
+            result.blocked = false;
+            // throw error;
+        }
+        return result;
+    }
+
     // async getTransactionInfo(txId: string): Promise<TransactionQueryResultDef> {
     //     const result: TransactionQueryResultDef = { blocked: false, blockHeight: -1 };
     //     try {
