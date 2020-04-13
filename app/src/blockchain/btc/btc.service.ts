@@ -50,10 +50,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
 
     private async monitor() {
         try {
-            if (!this.addresses || this.addresses.length == 0) {// 没有需要监听的地址
-                return
-            }
-            // console.log('addresses =0=>', this.addresses)
+
 
             let lastBlockHash = await client.command('getbestblockhash')
             // console.log('lastBlockHash =1=>', lastBlockHash)
@@ -67,6 +64,10 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
             // console.log('getblock =2=>', block)
             this.provider.onNewBlock({ height: block.height });
 
+            if (!this.addresses || this.addresses.length == 0) {// 没有需要监听的地址
+                return
+            }
+            // console.log('addresses =0=>', this.addresses)
             let txs = [];
             for (let txid of block.tx) {
                 let tx = await client.command('getrawtransaction', txid, true)

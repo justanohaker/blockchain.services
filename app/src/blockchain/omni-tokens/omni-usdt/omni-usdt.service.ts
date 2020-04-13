@@ -49,11 +49,6 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
 
     private async monitor() {
         try {
-            if (!this.addresses || this.addresses.length == 0) {// 没有需要监听的地址
-                return
-            }
-            // console.log('addresses =0=>', this.addresses)
-
             let chainInfo = await client.command('omni_getinfo');
             // console.log('chainInfo =1=>', chainInfo)
             let lastBlockHeght = chainInfo.block;
@@ -64,6 +59,11 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
 
             this.lastHeight = lastBlockHeght;
             this.provider.onNewBlock({ height: lastBlockHeght });
+
+            if (!this.addresses || this.addresses.length == 0) {// 没有需要监听的地址
+                return
+            }
+            // console.log('addresses =0=>', this.addresses)
 
             let transactions = await client.command('omni_listblocktransactions', lastBlockHeght);
             // console.log('omni_listblocktransactions =2=>', transactions)
