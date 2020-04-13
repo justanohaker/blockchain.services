@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { IService } from '../../common/service.interface';
 import {
     TransferDef, TransferResp, BalanceResp, OmniUsdtTransactin, TransferWithFeeDef,
@@ -29,6 +29,7 @@ const PRECISION = 1e-8;
 export class OmniUsdtService extends IService implements OnModuleInit, OnModuleDestroy {
     private interval = null;
     private lastHeight = -1;
+    private logger: Logger = new Logger('OmniUsdtServie', true);
 
     constructor() {
         super();
@@ -49,9 +50,11 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
 
     private async monitor() {
         try {
+            this.logger.log('start monitor');
             let chainInfo = await client.command('omni_getinfo');
             // console.log('chainInfo =1=>', chainInfo)
             let lastBlockHeght = chainInfo.block;
+            this.logger.log(`lastestBlockHeight:${lastBlockHeght}, cursorBlockHeight:${this.lastHeight}`);
             // console.log('lastBlockHash =1=>', lastBlockHash)
             if (this.lastHeight === lastBlockHeght) {// 没有更新区块 
                 return

@@ -441,10 +441,26 @@ export class Provider implements IChainProvider, IServiceProvider {
 
     protected async findAccountByAddress(address: string): Promise<Account> {
         // Maybe need cache??
-        const accountRepo = await this.AccountRepo.findOne({
+        let accountRepo = await this.AccountRepo.findOne({
             address,
             token: this.Token
         });
+        if (!accountRepo) {
+            const clientPayed = await this.ClientPayedRepo.findOne({
+                address,
+                token: this.Token
+            });
+            if (clientPayed) {
+                const accountIns = new Account();
+                accountIns.clientId = clientPayed.clientId;
+                accountIns.accountId = '';
+                accountIns.pubkey = clientPayed.pubkey;
+                accountIns.privkey = clientPayed.privkey;
+                accountIns.balance = clientPayed.balance;
+                accountIns.token = clientPayed.token;
+                accountIns.address = clientPayed.address;
+            }
+        }
         return accountRepo;
     }
 

@@ -17,6 +17,7 @@ import { Account } from '../../../models/accounts.model';
 import { ChainTx, ChainTxIndex, } from '../../../models/transactions.model';
 import { ChainTxBtcData } from '../../../models/transactions.model';
 import { Provider } from './provider';
+import { OmniUsdtProvider } from './omni-usdt.provider';
 import {
     BtcDef,
     TxAddActionResult,
@@ -41,6 +42,7 @@ export class BtcProvider extends Provider implements OnApplicationBootstrap {
         @InjectRepository(ClientPayed) public readonly ClientPayedRepo: Repository<ClientPayed>,
         public readonly PushService: PusherService,
         public readonly IService: BtcService,
+        private omniUsdtProvider: OmniUsdtProvider,
     ) {
         super();
 
@@ -166,5 +168,13 @@ export class BtcProvider extends Provider implements OnApplicationBootstrap {
             vIns: btcData.vIns,
             vOuts: btcData.vOuts
         } as BtcDef;
+    }
+
+    // callback
+    async onNewTransaction(transactions: Transaction[]): Promise<void> {
+        await super.onNewTransaction(transactions);
+
+        // notify transactions to omniLayerProtocol
+        await this.omniUsdtProvider.onBTCTransaction(transactions);
     }
 }

@@ -425,8 +425,8 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
     }
 
     // callbacks
-    async onNewTransaction(transactions: Transaction[]): Promise<void> {
-        await super.onNewTransaction(transactions);
+    async onBTCTransaction(transactions: Transaction[]): Promise<void> {
+        this.Logger.log(`onBTCTransaction with ${transactions.length}transactions`);
 
         const txIds: Map<string, Transaction> = new Map();
         transactions.forEach((value: Transaction) => txIds.set(value.txId, value));
@@ -448,6 +448,8 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
     async onNewBlock(block: BlockDef): Promise<void> {
         await super.onNewBlock(block);
 
+        this.Logger.log(`onNewBlock on BlockHeight(${block.height})`);
+
         for (const key of this.tasks.keys()) {
             const tasks = this.tasks.get(key);
             if (tasks.length <= 0) {
@@ -455,6 +457,7 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
             }
 
             const task = tasks[0];
+            this.Logger.log(`onNewBlock - task:${task.businessId},preTxId:${task.preTxId},preBlockHeight:${task.preTxIdBlockedHeight}`);
             if (task.preTxId && task.preTxIdBlockedHeight > 0) {
                 task.preTxConfirmed = block.height - task.preTxIdBlockedHeight;
                 // task.preTxConfirmed++;
