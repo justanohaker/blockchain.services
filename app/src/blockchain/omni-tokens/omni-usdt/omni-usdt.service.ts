@@ -58,7 +58,7 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
             }
 
             this.lastHeight = lastBlockHeght;
-            this.provider.onNewBlock({ height: lastBlockHeght });
+            this.provider?.onNewBlock({ height: lastBlockHeght });
 
             if (!this.addresses || this.addresses.length == 0) {// 没有需要监听的地址
                 return
@@ -92,7 +92,7 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
                 }
             }
             if (txs.length > 0) {
-                this.provider.onNewTransaction(txs);
+                this.provider?.onNewTransaction(txs);
             }
         } catch (error) {
             console.log(error)
