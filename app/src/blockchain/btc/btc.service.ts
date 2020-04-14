@@ -61,10 +61,14 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
                 return;
             }
 
+            if (this.lastHeight === -1) {//重新启动时从最新区块开始更新
+                this.lastHeight = lastBlock.height - 1;
+            }
+
             let offset = lastBlock.height - this.lastHeight;//一分钟可能产生多个区块
             for (let i = 0; i < offset; i++) {
                 this.lastHeight += 1;
-                let blockhash = await client.command('getblockhash',this.lastHeight);
+                let blockhash = await client.command('getblockhash', this.lastHeight);
                 let block = await client.command('getblock', blockhash);
                 // console.log('getblock =2=>', block)
                 this.provider.onNewBlock({ height: this.lastHeight });

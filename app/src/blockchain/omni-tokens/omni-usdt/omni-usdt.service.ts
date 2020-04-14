@@ -65,6 +65,10 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
                 return
             }
 
+            if (this.lastHeight === -1) {//重新启动时从最新区块开始更新
+                this.lastHeight = lastBlockHeght - 1;
+            }
+
             let offset = lastBlockHeght - this.lastHeight;//一分钟可能产生多个区块
             for (let i = 0; i < offset; i++) {
                 this.lastHeight += 1;
