@@ -236,7 +236,8 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
                     value: output.value,
                 });
             });
-            const ecpair = ECPair.fromPrivateKey(Buffer.from(data.keyPair.privateKey, 'hex'), { network: networks.testnet });
+            const ecpair = ECPair.fromPrivateKey(Buffer.from(data.keyPair.privateKey, 'hex'),
+                { network: AppConfig.mainnet ? networks.bitcoin : networks.testnet });
             psbt.signAllInputs(ecpair);
             psbt.validateSignaturesOfAllInputs();
             psbt.finalizeAllInputs();
@@ -319,7 +320,8 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
             }
 
             // 签名psbt
-            const ecpair = ECPair.fromPrivateKey(Buffer.from(data.keyPair.privateKey, 'hex'), { network: networks.testnet });
+            const ecpair = ECPair.fromPrivateKey(Buffer.from(data.keyPair.privateKey, 'hex'),
+                { network: AppConfig.mainnet ? networks.bitcoin : networks.testnet });
             psbt.signAllInputs(ecpair);
             psbt.validateSignaturesOfAllInputs();
             psbt.finalizeAllInputs();

@@ -315,7 +315,8 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
                     value: output.value,
                 });
             });
-            const ecpair = ECPair.fromPrivateKey(Buffer.from(data.payedKeyPair.privateKey, 'hex'), { network: networks.testnet });
+            const ecpair = ECPair.fromPrivateKey(Buffer.from(data.payedKeyPair.privateKey, 'hex'),
+                { network: AppConfig.mainnet ? networks.bitcoin : networks.testnet });
             psbt.signAllInputs(ecpair);
             psbt.validateSignaturesOfAllInputs();
             psbt.finalizeAllInputs();
