@@ -72,7 +72,7 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
             let offset = lastBlockHeght - this.lastHeight;//一分钟可能产生多个区块
             for (let i = 0; i < offset; i++) {
                 this.lastHeight += 1;
-                this.provider.onNewBlock({ height: this.lastHeight });
+                await this.provider.onNewBlock({ height: this.lastHeight });
 
                 let transactions = await client.command('omni_listblocktransactions', this.lastHeight);
                 // console.log('omni_listblocktransactions =2=>', transactions)
@@ -101,7 +101,7 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
                     }
                 }
                 if (txs.length > 0) {
-                    this.provider?.onNewTransaction(txs);
+                    await this.provider?.onNewTransaction(txs);
                 }
             }
         } catch (error) {

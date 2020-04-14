@@ -71,7 +71,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
                 let blockhash = await client.command('getblockhash', this.lastHeight);
                 let block = await client.command('getblock', blockhash);
                 // console.log('getblock =2=>', block)
-                this.provider?.onNewBlock({ height: this.lastHeight });
+                await this.provider?.onNewBlock({ height: this.lastHeight });
 
                 if (!this.addresses || this.addresses.length == 0) {// 没有需要监听的地址
                     continue;
@@ -133,7 +133,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
                     }
                 }
                 if (txs.length > 0) {
-                    this.provider?.onNewTransaction(txs);
+                    await this.provider?.onNewTransaction(txs);
                 }
             }
         } catch (error) {
