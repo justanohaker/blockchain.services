@@ -29,7 +29,7 @@ const PRECISION = 1e-8;
 @Injectable()
 export class BtcService extends IService implements OnModuleInit, OnModuleDestroy {
     private interval = null;
-    private lastHash = '';
+    private lastHeight = -1;
 
     constructor() {
         super();
@@ -50,79 +50,85 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
 
     private async monitor() {
         try {
-            let lastBlockHash = await client.command('getbestblockhash');
-            // console.log('lastBlockHash =1=>', lastBlockHash)
-            if (this.lastHash && this.lastHash === lastBlockHash) {// 没有更新区块
-                return;
-            }
-
-            this.lastHash = lastBlockHash;
-            let block = await client.command('getblock', lastBlockHash);
-            // console.log('getblock =2=>', block)
-            this.provider?.onNewBlock({ height: block.height });
-
             if (!this.addresses || this.addresses.length == 0) {// 没有需要监听的地址
                 return
             }
             // console.log('addresses =0=>', this.addresses)
-            let txs = [];
-            for (let txid of block.tx) {
-                let tx = await client.command('getrawtransaction', txid, true)
-                // console.log('txId =3=>', tx, JSON.stringify(tx))
 
-                let btcTx: BitcoinTransaction = {
-                    type: 'bitcoin',
-                    sub: 'btc',
-                    txId: tx.txid,
-                    blockHeight: block.height,
-                    blockTime: tx.blocktime,
-                    fee: '',
-                    vIns: [],
-                    vOuts: []
-                };
-                let isRelative = false;
-                let fee = new Bignumber(0);
-                for (let vin of tx.vin) {
-                    if (vin.txid) {
-                        let txVin = await client.command('getrawtransaction', vin.txid, true);
-                        let vout = txVin.vout[vin.vout];
+            let lastBlockHash = await client.command('getbestblockhash');
+            let lastBlock = await client.command('getblock', lastBlockHash);
+            if (this.lastHeight >= lastBlock.height) {
+                return;
+            }
+
+            let offset = lastBlock.height - this.lastHeight;//一分钟可能产生多个区块
+            for (let i = 0; i < offset; i++) {
+                this.lastHeight += 1;
+                let blockhash = await client.command('getblockhash',this.lastHeight);
+                let block = await client.command('getblock', blockhash);
+                // console.log('getblock =2=>', block)
+                this.provider.onNewBlock({ height: this.lastHeight });
+
+
+                let txs = [];
+                for (let txid of block.tx) {
+                    let tx = await client.command('getrawtransaction', txid, true)
+                    // console.log('txId =3=>', tx, JSON.stringify(tx))
+
+                    let btcTx: BitcoinTransaction = {
+                        type: 'bitcoin',
+                        sub: 'btc',
+                        txId: tx.txid,
+                        blockHeight: block.height,
+                        blockTime: tx.blocktime,
+                        fee: '',
+                        vIns: [],
+                        vOuts: []
+                    };
+                    let isRelative = false;
+                    let fee = new Bignumber(0);
+                    for (let vin of tx.vin) {
+                        if (vin.txid) {
+                            let txVin = await client.command('getrawtransaction', vin.txid, true);
+                            let vout = txVin.vout[vin.vout];
+                            if (vout.scriptPubKey && vout.scriptPubKey.addresses) {
+                                for (let address of vout.scriptPubKey.addresses) {
+                                    btcTx.vIns.push({
+                                        address: address,
+                                        amount: new Bignumber(vout.value).div(PRECISION).toString()
+                                    });
+                                    fee = fee.plus(vout.value);
+                                    if (this.addresses && this.addresses.includes(address)) {
+                                        isRelative = true;
+                                    }
+                                }
+                            };
+                        }
+                    }
+                    for (let vout of tx.vout) {
                         if (vout.scriptPubKey && vout.scriptPubKey.addresses) {
                             for (let address of vout.scriptPubKey.addresses) {
-                                btcTx.vIns.push({
+                                // console.log('scriptPubKey =6=>', vout.scriptPubKey)
+                                btcTx.vOuts.push({
                                     address: address,
                                     amount: new Bignumber(vout.value).div(PRECISION).toString()
                                 });
-                                fee = fee.plus(vout.value);
+                                fee = fee.minus(vout.value);
                                 if (this.addresses && this.addresses.includes(address)) {
                                     isRelative = true;
                                 }
                             }
-                        };
-                    }
-                }
-                for (let vout of tx.vout) {
-                    if (vout.scriptPubKey && vout.scriptPubKey.addresses) {
-                        for (let address of vout.scriptPubKey.addresses) {
-                            // console.log('scriptPubKey =6=>', vout.scriptPubKey)
-                            btcTx.vOuts.push({
-                                address: address,
-                                amount: new Bignumber(vout.value).div(PRECISION).toString()
-                            });
-                            fee = fee.minus(vout.value);
-                            if (this.addresses && this.addresses.includes(address)) {
-                                isRelative = true;
-                            }
                         }
                     }
+                    if (isRelative) {
+                        btcTx.fee = fee.div(PRECISION).toString();
+                        txs.push(btcTx);
+                        console.log('tx =7=>:', btcTx)
+                    }
                 }
-                if (isRelative) {
-                    btcTx.fee = fee.div(PRECISION).toString();
-                    txs.push(btcTx);
-                    console.log('tx =7=>:', btcTx)
+                if (txs.length > 0) {
+                    this.provider?.onNewTransaction(txs);
                 }
-            }
-            if (txs.length > 0) {
-                this.provider?.onNewTransaction(txs);
             }
         } catch (error) {
             console.log(error)

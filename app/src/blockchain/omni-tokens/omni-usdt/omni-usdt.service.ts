@@ -51,51 +51,54 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
     private async monitor() {
         try {
             this.logger.log('start monitor');
-            let chainInfo = await client.command('omni_getinfo');
-            // console.log('chainInfo =1=>', chainInfo)
-            let lastBlockHeght = chainInfo.block;
-            this.logger.log(`lastestBlockHeight:${lastBlockHeght}, cursorBlockHeight:${this.lastHeight}`);
-            // console.log('lastBlockHash =1=>', lastBlockHash)
-            if (this.lastHeight === lastBlockHeght) {// 没有更新区块 
-                return
-            }
-
-            this.lastHeight = lastBlockHeght;
-            this.provider?.onNewBlock({ height: lastBlockHeght });
-
             if (!this.addresses || this.addresses.length == 0) {// 没有需要监听的地址
                 return
             }
             // console.log('addresses =0=>', this.addresses)
 
-            let transactions = await client.command('omni_listblocktransactions', lastBlockHeght);
-            // console.log('omni_listblocktransactions =2=>', transactions)
-
-            let txs = [];
-            for (let txid of transactions) {
-                let tx = await client.command('omni_gettransaction', txid);
-                // console.log('txId =3=>', tx, JSON.stringify(tx))
-
-                if (this.addresses.includes(tx.sendingaddress) || this.addresses.includes(tx.referenceaddress)) {
-                    let omniTx: OmniUsdtTransactin = {
-                        type: 'bitcoin',
-                        sub: 'omni_usdt',
-                        txId: txid,
-                        blockHeight: lastBlockHeght,
-                        blockTime: tx.blocktime,
-                        propertyId: tx.propertyid,
-                        version: tx.version,
-                        typeInt: tx.type_int,
-                        sending: tx.sendingaddress,
-                        reference: tx.referenceaddress,
-                        amount: new Bignumber(tx.amount).div(PRECISION).toString(),
-                        fee: new Bignumber(tx.fee).div(PRECISION).toString()
-                    };
-                    txs.push(omniTx);
-                }
+            let chainInfo = await client.command('omni_getinfo');
+            // console.log('chainInfo =1=>', chainInfo)
+            let lastBlockHeght = chainInfo.block;
+            this.logger.log(`lastestBlockHeight:${lastBlockHeght}, cursorBlockHeight:${this.lastHeight}`);
+            // console.log('lastBlockHash =1=>', lastBlockHash)
+            if (this.lastHeight >= lastBlockHeght) {// 没有更新区块 
+                return
             }
-            if (txs.length > 0) {
-                this.provider?.onNewTransaction(txs);
+
+            let offset = lastBlockHeght - this.lastHeight;//一分钟可能产生多个区块
+            for (let i = 0; i < offset; i++) {
+                this.lastHeight += 1;
+                this.provider.onNewBlock({ height: this.lastHeight });
+
+                let transactions = await client.command('omni_listblocktransactions', this.lastHeight);
+                // console.log('omni_listblocktransactions =2=>', transactions)
+
+                let txs = [];
+                for (let txid of transactions) {
+                    let tx = await client.command('omni_gettransaction', txid);
+                    // console.log('txId =3=>', tx, JSON.stringify(tx))
+
+                    if (this.addresses.includes(tx.sendingaddress) || this.addresses.includes(tx.referenceaddress)) {
+                        let omniTx: OmniUsdtTransactin = {
+                            type: 'bitcoin',
+                            sub: 'omni_usdt',
+                            txId: txid,
+                            blockHeight: this.lastHeight,
+                            blockTime: tx.blocktime,
+                            propertyId: tx.propertyid,
+                            version: tx.version,
+                            typeInt: tx.type_int,
+                            sending: tx.sendingaddress,
+                            reference: tx.referenceaddress,
+                            amount: new Bignumber(tx.amount).div(PRECISION).toString(),
+                            fee: new Bignumber(tx.fee).div(PRECISION).toString()
+                        };
+                        txs.push(omniTx);
+                    }
+                }
+                if (txs.length > 0) {
+                    this.provider?.onNewTransaction(txs);
+                }
             }
         } catch (error) {
             console.log(error)
