@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, OnApplicationBootstrap, Logger } from '@nestjs/common';
 import { IService } from '../common/service.interface';
 import {
     TransferDef, TransferResp, BalanceResp, BitcoinTransaction, TransferWithFeeDef,
@@ -11,6 +11,8 @@ import { ECPair, networks, Psbt } from 'bitcoinjs-lib';
 import Bignumber from 'bignumber.js';
 import coinSelect = require('coinselect');
 import Axios from 'axios';
+import * as path from 'path';
+import * as fs from 'fs';
 
 import { AppConfig } from '../../config/app.config';
 import Client = require('bitcoin-core');
@@ -27,25 +29,172 @@ const client = new Client({
 const PRECISION = 1e-8;
 
 @Injectable()
-export class BtcService extends IService implements OnModuleInit, OnModuleDestroy {
+export class BtcService extends IService implements OnModuleInit, OnModuleDestroy, OnApplicationBootstrap {
     private interval = null;
     private lastHeight = -1;
 
+    private logger: Logger = new Logger('BtcService', true);
+    private blockCursor: number = -1;
+    private blockLatestHeight: number = -1;
+    private blockSchedHandler: NodeJS.Timeout = null;
+    private transactionSchedHandler: NodeJS.Timeout = null;
+    private backupFilePath: string = '';
+
+    private static BLOCK_SCHED_INTERVAL: number = 60 * 1000;
+    private static TRANSACTION_SCHED_INTERVAL: number = 500;
+
     constructor() {
         super();
+
+        this.backupFilePath = path.resolve(path.join(__dirname, '../../../', 'btc.service.dat'));
+        this.syncBlockSched = this.syncBlockSched.bind(this);
+        this.syncTransactionSched = this.syncTransactionSched.bind(this);
     }
 
     async onModuleInit() {
-        await this.monitor();
-        this.interval = setInterval(() => {
-            this.monitor();
-        }, 60000);
+        // await this.monitor();
+        // this.interval = setInterval(() => {
+        //     this.monitor();
+        // }, 60000);
+
+        try {
+            const fileContent = fs.readFileSync(this.backupFilePath, { encoding: 'utf8' });
+            const unmarshalDat = JSON.parse(fileContent);
+            if (unmarshalDat.blockCursor) {
+                this.blockCursor = unmarshalDat.blockCursor;
+                this.logger.log(`load blockCursor(${this.blockCursor})`);
+            }
+        } catch (error) { }
     }
 
     async onModuleDestroy() {
-        if (this.interval !== null) {
-            clearInterval(this.interval);
+        // if (this.interval !== null) {
+        //     clearInterval(this.interval);
+        // }
+
+        if (this.blockSchedHandler) {
+            clearTimeout(this.blockSchedHandler);
+            this.blockSchedHandler = null;
         }
+        if (this.transactionSchedHandler) {
+            clearTimeout(this.transactionSchedHandler);
+            this.transactionSchedHandler = null;
+        }
+
+        const backupData = JSON.stringify({
+            blockCursor: this.blockCursor
+        });
+        try {
+            fs.writeFileSync(this.backupFilePath, backupData, { encoding: 'utf8' });
+            this.logger.log(`backup btc.service.dat:${backupData}`);
+        } catch (error) { }
+    }
+
+    async onApplicationBootstrap() {
+        this.blockSchedHandler = setTimeout(this.syncBlockSched, 0);
+        this.transactionSchedHandler = setTimeout(this.syncTransactionSched, BtcService.TRANSACTION_SCHED_INTERVAL);
+    }
+
+    private syncBlockSched() {
+        this.blockSchedHandler = null;
+        (async () => {
+            const blockCount = await client.command('getblockcount');
+            if (this.blockLatestHeight != blockCount) {
+                this.blockLatestHeight = blockCount;
+                this.logger.log(`syncBlock(${blockCount})`);
+            }
+
+            if (this.blockCursor == -1) {
+                // init blockCursor
+                this.blockCursor = this.blockLatestHeight;
+            }
+        })()
+            .then(() => { })
+            .catch(error => this.logger.log(`syncBlockSched error: ${error}`))
+            .finally(() => this.blockSchedHandler = setTimeout(this.syncBlockSched, BtcService.BLOCK_SCHED_INTERVAL));
+    }
+
+    private syncTransactionSched() {
+        this.transactionSchedHandler = null;
+        (async () => {
+            if (this.blockCursor > this.blockLatestHeight) {
+                return false;
+            }
+
+            await this.provider?.onNewBlock({ height: this.blockCursor });
+            this.logger.log(`onNewBlock(${this.blockCursor}) Event...`);
+
+            if (!this.addresses || this.addresses.length <= 0) {
+                return true;
+            }
+
+            let blockhash = await client.command('getblockhash', this.lastHeight);
+            let block = await client.command('getblock', blockhash);
+            let txs = [];
+            for (let txid of block.tx) {
+                let tx = await client.command('getrawtransaction', txid, true)
+                // console.log('txId =3=>', tx, JSON.stringify(tx))
+
+                let btcTx: BitcoinTransaction = {
+                    type: 'bitcoin',
+                    sub: 'btc',
+                    txId: tx.txid,
+                    blockHeight: block.height,
+                    blockTime: tx.blocktime,
+                    fee: '',
+                    vIns: [],
+                    vOuts: []
+                };
+                let isRelative = false;
+                let fee = new Bignumber(0);
+                for (let vin of tx.vin) {
+                    if (vin.txid) {
+                        let txVin = await client.command('getrawtransaction', vin.txid, true);
+                        let vout = txVin.vout[vin.vout];
+                        if (vout.scriptPubKey && vout.scriptPubKey.addresses) {
+                            for (let address of vout.scriptPubKey.addresses) {
+                                btcTx.vIns.push({
+                                    address: address,
+                                    amount: new Bignumber(vout.value).div(PRECISION).toString()
+                                });
+                                fee = fee.plus(vout.value);
+                                if (this.addresses && this.addresses.includes(address)) {
+                                    isRelative = true;
+                                }
+                            }
+                        };
+                    }
+                }
+                for (let vout of tx.vout) {
+                    if (vout.scriptPubKey && vout.scriptPubKey.addresses) {
+                        for (let address of vout.scriptPubKey.addresses) {
+                            // console.log('scriptPubKey =6=>', vout.scriptPubKey)
+                            btcTx.vOuts.push({
+                                address: address,
+                                amount: new Bignumber(vout.value).div(PRECISION).toString()
+                            });
+                            fee = fee.minus(vout.value);
+                            if (this.addresses && this.addresses.includes(address)) {
+                                isRelative = true;
+                            }
+                        }
+                    }
+                }
+                if (isRelative) {
+                    btcTx.fee = fee.div(PRECISION).toString();
+                    txs.push(btcTx);
+                    console.log('tx =7=>:', btcTx)
+                }
+            }
+            if (txs.length > 0) {
+                await this.provider?.onNewTransaction(txs);
+                this.logger.log(`onNewTransaction(${txs.length}) event on BlockHeight(${this.blockCursor})...`);
+            }
+            return true;
+        })()
+            .then((success: boolean) => success && this.blockCursor++)
+            .catch(error => this.logger.log(`syncTransactionSched error: ${error}`))
+            .finally(() => this.transactionSchedHandler = setTimeout(this.syncTransactionSched, BtcService.TRANSACTION_SCHED_INTERVAL));
     }
 
     private async monitor() {

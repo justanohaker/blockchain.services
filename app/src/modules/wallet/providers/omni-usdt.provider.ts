@@ -87,9 +87,7 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
                 tasksConv.set(task[0], task[1]);
             }
             this.tasks = tasksConv;
-        } catch (error) {
-            this.Logger.log(`load tasks data failed. error:${error}`);
-        }
+        } catch (error) { }
     }
 
     async onModuleDestroy() {
@@ -103,12 +101,10 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
             for (const entry of this.tasks) {
                 tasksConv.push(entry);
             }
-            const tasksStr = JSON.stringify(tasksConv, null, 2);
+            const tasksStr = JSON.stringify(tasksConv);
             fs.writeFileSync(this.tasksFilePath, tasksStr, { encoding: 'utf8' });
-            this.Logger.log('onModuleDestroy[tasks]:', JSON.stringify(tasksStr));
-        } catch (error) {
-            this.Logger.log(`store tasks data failed. error:${error}`);
-        }
+            this.Logger.log(`backup omni_usdt.tasks.dat:${tasksStr}`);
+        } catch (error) { }
     }
 
     async onApplicationBootstrap() {
@@ -426,7 +422,7 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
 
     // callbacks
     async onBTCTransaction(transactions: Transaction[]): Promise<void> {
-        this.Logger.log(`onBTCTransaction with ${transactions.length}transactions`);
+        // this.Logger.log(`onBTCTransaction with ${transactions.length}transactions`);
 
         const txIds: Map<string, Transaction> = new Map();
         transactions.forEach((value: Transaction) => txIds.set(value.txId, value));
@@ -448,7 +444,7 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
     async onNewBlock(block: BlockDef): Promise<void> {
         await super.onNewBlock(block);
 
-        this.Logger.log(`onNewBlock on BlockHeight(${block.height})`);
+        // this.Logger.log(`onNewBlock on BlockHeight(${block.height})`);
 
         for (const key of this.tasks.keys()) {
             const tasks = this.tasks.get(key);

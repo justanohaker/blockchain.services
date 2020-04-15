@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { IService } from '../../common/service.interface';
 import {
     TransferDef, TransferResp, BalanceResp, OmniUsdtTransactin, TransferWithFeeDef,
@@ -9,13 +9,15 @@ import { FeePriority } from 'src/libs/types';
 import Bignumber from 'bignumber.js';
 import coinSelect = require('coinselect');
 import Axios from 'axios';
+import * as path from 'path';
+import * as fs from 'fs';
 
 import { AppConfig } from '../../../config/app.config';
 import Client = require('bitcoin-core');
 const client = new Client({
     host: AppConfig.mainnet ? '120.53.0.176' : '111.231.105.174',
     port: 8332,
-    network: AppConfig.mainnet ? 'mainnet' : 'regtest',
+    // network: AppConfig.mainnet ? 'mainnet' : 'regtest',
     username: 'entanmo_bitcoin',
     password: 'Entanmo2018',
     version: '',
@@ -26,36 +28,154 @@ const PROPERTY = AppConfig.mainnet ? 31 : 2; //propertyid  1:OMNI,2:TOMNI,31:USD
 const PRECISION = 1e-8;
 
 @Injectable()
-export class OmniUsdtService extends IService implements OnModuleInit, OnModuleDestroy {
+export class OmniUsdtService extends IService implements OnModuleInit, OnModuleDestroy, OnApplicationBootstrap {
     private interval = null;
     private lastHeight = -1;
     private logger: Logger = new Logger('OmniUsdtServie', true);
+    // 游标
+    private blockCursor: number = -1;
+    // 同步的最新的高度
+    private blockLatestHeight: number = -1;
+    // 区块同步调度器句柄
+    private blockSchedHandler: NodeJS.Timeout = null;
+    // 区块交易遍历句柄
+    private transactionSchedHandler: NodeJS.Timeout = null;
+    // backup file path
+    private backupFilePath: string = '';
+
+    private static BLOCK_SCHED_INTERVAL: number = 60 * 1000;
+    private static TRANSACTION_SCHED_INTERVAL: number = 500;
 
     constructor() {
         super();
+
+        this.backupFilePath = path.resolve(path.join(__dirname, '../../../../', 'omni_usdt.service.dat'));
+
+        this.syncBlockSched = this.syncBlockSched.bind(this);
+        this.syncTransactionSched = this.syncTransactionSched.bind(this);
     }
 
     async onModuleInit(): Promise<void> {
-        await this.monitor();
-        this.interval = setInterval(() => {
-            this.monitor();
-        }, 60000);
+        // await this.monitor();
+        // this.interval = setInterval(() => {
+        //     this.monitor();
+        // }, 60000);
+
+        try {
+            const fileContent = fs.readFileSync(this.backupFilePath, { encoding: 'utf8' });
+            const unmarshalDat = JSON.parse(fileContent);
+            if (unmarshalDat.blockCursor) {
+                this.blockCursor = unmarshalDat.blockCursor;
+                this.logger.log(`load blockCursor(${this.blockCursor})`);
+            }
+        } catch (error) { }
     }
 
     async onModuleDestroy(): Promise<void> {
-        if (this.interval !== null) {
-            clearInterval(this.interval)
+        // if (this.interval !== null) {
+        //     clearInterval(this.interval)
+        // }
+
+        if (this.blockSchedHandler) {
+            clearTimeout(this.blockSchedHandler);
+            this.blockSchedHandler = null;
         }
+        if (this.transactionSchedHandler) {
+            clearTimeout(this.transactionSchedHandler);
+            this.transactionSchedHandler = null;
+        }
+
+        const backupData = JSON.stringify({
+            blockCursor: this.blockCursor
+        });
+        try {
+            fs.writeFileSync(this.backupFilePath, backupData, { encoding: 'utf8' });
+            this.logger.log(`backup omni_usdt.service.dat:${backupData}`);
+        } catch (error) { }
+    }
+
+    async onApplicationBootstrap() {
+        this.blockSchedHandler = setTimeout(this.syncBlockSched, 0);
+        this.transactionSchedHandler = setTimeout(this.syncTransactionSched, OmniUsdtService.TRANSACTION_SCHED_INTERVAL);
+    }
+
+    private syncBlockSched() {
+        this.blockSchedHandler = null;
+        (async () => {
+            const blockCount = await client.command('getblockcount');
+            if (this.blockLatestHeight != blockCount) {
+                this.blockLatestHeight = blockCount;
+                this.logger.log(`syncBlock(${blockCount})`);
+            }
+
+            if (this.blockCursor == -1) {
+                // init blockCursor
+                this.blockCursor = this.blockLatestHeight;
+            }
+        })()
+            .then(() => { /** Nothing to do */ })
+            .catch(error => this.logger.log(`syncBlockSched error:${error}`))
+            .finally(() => this.blockSchedHandler = setTimeout(this.syncBlockSched, OmniUsdtService.BLOCK_SCHED_INTERVAL));
+    }
+
+    private syncTransactionSched() {
+        this.transactionSchedHandler = null;
+        (async () => {
+            if (this.blockCursor > this.blockLatestHeight) {
+                // 不用递增blockCursor
+                return false;
+            }
+
+            // 新区块通知
+            await this.provider?.onNewBlock({ height: this.blockCursor });
+            this.logger.log(`onNewBlock(${this.blockCursor}) Event...`);
+
+            if (!this.addresses || this.addresses.length <= 0) {
+                // 需要递增blockCursor
+                return true;
+            }
+
+            let transactions = await client.command('omni_listblocktransactions', this.blockCursor);
+            let txs = [];
+            for (let txid of transactions) {
+                let tx = await client.command('omni_gettransaction', txid);
+                if (this.addresses.includes(tx.sendingaddress)
+                    || this.addresses.includes(tx.referenceaddress)) {
+                    let omniTx: OmniUsdtTransactin = {
+                        type: 'bitcoin',
+                        sub: 'omni_usdt',
+                        txId: txid,
+                        blockHeight: this.lastHeight,
+                        blockTime: tx.blocktime,
+                        propertyId: tx.propertyid,
+                        version: tx.version,
+                        typeInt: tx.type_int,
+                        sending: tx.sendingaddress,
+                        reference: tx.referenceaddress,
+                        amount: new Bignumber(tx.amount).div(PRECISION).toString(),
+                        fee: new Bignumber(tx.fee).div(PRECISION).toString()
+                    };
+                    txs.push(omniTx);
+                }
+            }
+
+            if (txs.length > 0) {
+                await this.provider?.onNewTransaction(txs);
+                this.logger.log(`onNewTransaction(${txs.length}) event on BlockHeight(${this.blockCursor})...`);
+            }
+
+            return true;
+        })()
+            .then((success: boolean) => success && this.blockCursor++)
+            .catch(error => this.logger.log(`syncTransactionSched error: ${error}`))
+            .finally(() => this.transactionSchedHandler = setTimeout(this.syncTransactionSched, OmniUsdtService.TRANSACTION_SCHED_INTERVAL));
+
     }
 
     private async monitor() {
         try {
             this.logger.log('start monitor');
-            if (!this.addresses || this.addresses.length == 0) {// 没有需要监听的地址
-                return
-            }
             // console.log('addresses =0=>', this.addresses)
-
             let chainInfo = await client.command('omni_getinfo');
             // console.log('chainInfo =1=>', chainInfo)
             let lastBlockHeght = chainInfo.block;
@@ -72,8 +192,11 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
             let offset = lastBlockHeght - this.lastHeight;//一分钟可能产生多个区块
             for (let i = 0; i < offset; i++) {
                 this.lastHeight += 1;
-                await this.provider.onNewBlock({ height: this.lastHeight });
+                await this.provider?.onNewBlock({ height: this.lastHeight });
 
+                if (!this.addresses || this.addresses.length == 0) {// 没有需要监听的地址
+                    continue;
+                }
                 let transactions = await client.command('omni_listblocktransactions', this.lastHeight);
                 // console.log('omni_listblocktransactions =2=>', transactions)
 
