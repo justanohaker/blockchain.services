@@ -44,7 +44,7 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
     private backupFilePath: string = '';
 
     private static BLOCK_SCHED_INTERVAL: number = 60 * 1000;
-    private static TRANSACTION_SCHED_INTERVAL: number = 500;
+    private static TRANSACTION_SCHED_INTERVAL: number = 1 * 1000;
 
     constructor() {
         super();
@@ -96,26 +96,39 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
 
     async onApplicationBootstrap() {
         this.blockSchedHandler = setTimeout(this.syncBlockSched, 0);
-        this.transactionSchedHandler = setTimeout(this.syncTransactionSched, OmniUsdtService.TRANSACTION_SCHED_INTERVAL);
+        this.transactionSchedHandler = setTimeout(
+            this.syncTransactionSched,
+            OmniUsdtService.TRANSACTION_SCHED_INTERVAL
+        );
     }
 
     private syncBlockSched() {
         this.blockSchedHandler = null;
         (async () => {
-            const blockCount = await client.command('getblockcount');
-            if (this.blockLatestHeight != blockCount) {
-                this.blockLatestHeight = blockCount;
-                this.logger.log(`syncBlock(${blockCount})`);
+            let lastBlockHash = await client.command('getbestblockhash');
+            let lastBlock = await client.command('getblock', lastBlockHash);
+            if (this.blockLatestHeight != lastBlock.height) {
+                this.blockLatestHeight = lastBlock.height;
+                this.logger.log(`syncBlock(${lastBlock.height})`);
             }
-
             if (this.blockCursor == -1) {
                 // init blockCursor
                 this.blockCursor = this.blockLatestHeight;
             }
         })()
-            .then(() => { /** Nothing to do */ })
-            .catch(error => this.logger.log(`syncBlockSched error:${error}`))
-            .finally(() => this.blockSchedHandler = setTimeout(this.syncBlockSched, OmniUsdtService.BLOCK_SCHED_INTERVAL));
+            .then(() => {
+                this.blockSchedHandler = setTimeout(
+                    this.syncBlockSched,
+                    OmniUsdtService.BLOCK_SCHED_INTERVAL
+                );
+            }, (error) => {
+                this.blockSchedHandler = setTimeout(
+                    this.syncBlockSched,
+                    OmniUsdtService.BLOCK_SCHED_INTERVAL
+                );
+                this.logger.log(`syncBlockSched error:${error}`);
+
+            });
     }
 
     private syncTransactionSched() {
@@ -126,49 +139,61 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
                 return false;
             }
 
+            do {
+                if (!this.addresses || this.addresses.length <= 0) {
+                    // 需要递增blockCursor
+                    break;
+                }
+
+                let transactions = await client.command('omni_listblocktransactions', this.blockCursor);
+                let txs = [];
+                for (let txid of transactions) {
+                    let tx = await client.command('omni_gettransaction', txid);
+                    if (this.addresses.includes(tx.sendingaddress)
+                        || this.addresses.includes(tx.referenceaddress)) {
+                        let omniTx: OmniUsdtTransactin = {
+                            type: 'bitcoin',
+                            sub: 'omni_usdt',
+                            txId: txid,
+                            blockHeight: this.lastHeight,
+                            blockTime: tx.blocktime,
+                            propertyId: tx.propertyid,
+                            version: tx.version,
+                            typeInt: tx.type_int,
+                            sending: tx.sendingaddress,
+                            reference: tx.referenceaddress,
+                            amount: new Bignumber(tx.amount).div(PRECISION).toString(),
+                            fee: new Bignumber(tx.fee).div(PRECISION).toString()
+                        };
+                        txs.push(omniTx);
+                    }
+                }
+
+                if (txs.length > 0) {
+                    await this.provider?.onNewTransaction(txs);
+                    this.logger.log(`onNewTransaction(${txs.length}) event on BlockHeight(${this.blockCursor})...`);
+                }
+            } while (false);
+
             // 新区块通知
             await this.provider?.onNewBlock({ height: this.blockCursor });
             this.logger.log(`onNewBlock(${this.blockCursor}) Event...`);
 
-            if (!this.addresses || this.addresses.length <= 0) {
-                // 需要递增blockCursor
-                return true;
-            }
-
-            let transactions = await client.command('omni_listblocktransactions', this.blockCursor);
-            let txs = [];
-            for (let txid of transactions) {
-                let tx = await client.command('omni_gettransaction', txid);
-                if (this.addresses.includes(tx.sendingaddress)
-                    || this.addresses.includes(tx.referenceaddress)) {
-                    let omniTx: OmniUsdtTransactin = {
-                        type: 'bitcoin',
-                        sub: 'omni_usdt',
-                        txId: txid,
-                        blockHeight: this.lastHeight,
-                        blockTime: tx.blocktime,
-                        propertyId: tx.propertyid,
-                        version: tx.version,
-                        typeInt: tx.type_int,
-                        sending: tx.sendingaddress,
-                        reference: tx.referenceaddress,
-                        amount: new Bignumber(tx.amount).div(PRECISION).toString(),
-                        fee: new Bignumber(tx.fee).div(PRECISION).toString()
-                    };
-                    txs.push(omniTx);
-                }
-            }
-
-            if (txs.length > 0) {
-                await this.provider?.onNewTransaction(txs);
-                this.logger.log(`onNewTransaction(${txs.length}) event on BlockHeight(${this.blockCursor})...`);
-            }
-
             return true;
         })()
-            .then((success: boolean) => success && this.blockCursor++)
-            .catch(error => this.logger.log(`syncTransactionSched error: ${error}`))
-            .finally(() => this.transactionSchedHandler = setTimeout(this.syncTransactionSched, OmniUsdtService.TRANSACTION_SCHED_INTERVAL));
+            .then((success: boolean) => {
+                success && this.blockCursor++;
+                this.transactionSchedHandler = setTimeout(
+                    this.syncTransactionSched,
+                    OmniUsdtService.TRANSACTION_SCHED_INTERVAL
+                );
+            }, (error) => {
+                this.transactionSchedHandler = setTimeout(
+                    this.syncTransactionSched,
+                    OmniUsdtService.TRANSACTION_SCHED_INTERVAL
+                );
+                this.logger.log(`syncTransactionSched error: ${error}`);
+            });
 
     }
 

@@ -19,7 +19,7 @@ import Client = require('bitcoin-core');
 const client = new Client({
     host: AppConfig.mainnet ? '120.53.0.176' : '111.231.105.174',
     port: 8332,
-    network: AppConfig.mainnet ? 'mainnet' : 'regtest',
+    // network: AppConfig.mainnet ? 'mainnet' : 'regtest',
     username: 'entanmo_bitcoin',
     password: 'Entanmo2018',
     version: '',
@@ -41,7 +41,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
     private backupFilePath: string = '';
 
     private static BLOCK_SCHED_INTERVAL: number = 60 * 1000;
-    private static TRANSACTION_SCHED_INTERVAL: number = 500;
+    private static TRANSACTION_SCHED_INTERVAL: number = 1 * 1000;
 
     constructor() {
         super();
@@ -98,10 +98,11 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
     private syncBlockSched() {
         this.blockSchedHandler = null;
         (async () => {
-            const blockCount = await client.command('getblockcount');
-            if (this.blockLatestHeight != blockCount) {
-                this.blockLatestHeight = blockCount;
-                this.logger.log(`syncBlock(${blockCount})`);
+            let lastBlockHash = await client.command('getbestblockhash');
+            let lastBlock = await client.command('getblock', lastBlockHash);
+            if (this.blockLatestHeight != lastBlock.height) {
+                this.blockLatestHeight = lastBlock.height;
+                this.logger.log(`syncBlock(${lastBlock.height})`);
             }
 
             if (this.blockCursor == -1) {
@@ -109,92 +110,117 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
                 this.blockCursor = this.blockLatestHeight;
             }
         })()
-            .then(() => { })
-            .catch(error => this.logger.log(`syncBlockSched error: ${error}`))
-            .finally(() => this.blockSchedHandler = setTimeout(this.syncBlockSched, BtcService.BLOCK_SCHED_INTERVAL));
+            .then(() => {
+                this.blockSchedHandler = setTimeout(
+                    this.syncBlockSched,
+                    BtcService.BLOCK_SCHED_INTERVAL
+                );
+
+            }, (error) => {
+                this.blockSchedHandler = setTimeout(
+                    this.syncBlockSched,
+                    BtcService.BLOCK_SCHED_INTERVAL
+                );
+                this.logger.log(`syncBlockSched error: ${error}`);
+            });
     }
 
     private syncTransactionSched() {
         this.transactionSchedHandler = null;
         (async () => {
+            this.logger.log(`start syncTransactionSched(${this.blockCursor},${this.blockLatestHeight})`);
             if (this.blockCursor > this.blockLatestHeight) {
                 return false;
             }
 
-            await this.provider?.onNewBlock({ height: this.blockCursor });
-            this.logger.log(`onNewBlock(${this.blockCursor}) Event...`);
+            do {
+                if (!this.addresses || this.addresses.length <= 0) {
+                    break;
+                }
 
-            if (!this.addresses || this.addresses.length <= 0) {
-                return true;
-            }
+                let blockhash = await client.command('getblockhash', this.blockCursor);
+                let block = await client.command('getblock', blockhash);
+                let txs = [];
+                for (let txid of block.tx) {
+                    let tx = await client.command('getrawtransaction', txid, true)
+                    // console.log('txId =3=>', tx, JSON.stringify(tx))
 
-            let blockhash = await client.command('getblockhash', this.lastHeight);
-            let block = await client.command('getblock', blockhash);
-            let txs = [];
-            for (let txid of block.tx) {
-                let tx = await client.command('getrawtransaction', txid, true)
-                // console.log('txId =3=>', tx, JSON.stringify(tx))
-
-                let btcTx: BitcoinTransaction = {
-                    type: 'bitcoin',
-                    sub: 'btc',
-                    txId: tx.txid,
-                    blockHeight: block.height,
-                    blockTime: tx.blocktime,
-                    fee: '',
-                    vIns: [],
-                    vOuts: []
-                };
-                let isRelative = false;
-                let fee = new Bignumber(0);
-                for (let vin of tx.vin) {
-                    if (vin.txid) {
-                        let txVin = await client.command('getrawtransaction', vin.txid, true);
-                        let vout = txVin.vout[vin.vout];
+                    let btcTx: BitcoinTransaction = {
+                        type: 'bitcoin',
+                        sub: 'btc',
+                        txId: tx.txid,
+                        blockHeight: block.height,
+                        blockTime: tx.blocktime,
+                        fee: '',
+                        vIns: [],
+                        vOuts: []
+                    };
+                    let isRelative = false;
+                    let fee = new Bignumber(0);
+                    for (let vin of tx.vin) {
+                        if (vin.txid) {
+                            let txVin = await client.command('getrawtransaction', vin.txid, true);
+                            let vout = txVin.vout[vin.vout];
+                            if (vout.scriptPubKey && vout.scriptPubKey.addresses) {
+                                for (let address of vout.scriptPubKey.addresses) {
+                                    btcTx.vIns.push({
+                                        address: address,
+                                        amount: new Bignumber(vout.value).div(PRECISION).toString()
+                                    });
+                                    fee = fee.plus(vout.value);
+                                    if (this.addresses && this.addresses.includes(address)) {
+                                        isRelative = true;
+                                    }
+                                }
+                            };
+                        }
+                    }
+                    for (let vout of tx.vout) {
                         if (vout.scriptPubKey && vout.scriptPubKey.addresses) {
                             for (let address of vout.scriptPubKey.addresses) {
-                                btcTx.vIns.push({
+                                // console.log('scriptPubKey =6=>', vout.scriptPubKey)
+                                btcTx.vOuts.push({
                                     address: address,
                                     amount: new Bignumber(vout.value).div(PRECISION).toString()
                                 });
-                                fee = fee.plus(vout.value);
+                                fee = fee.minus(vout.value);
                                 if (this.addresses && this.addresses.includes(address)) {
                                     isRelative = true;
                                 }
                             }
-                        };
-                    }
-                }
-                for (let vout of tx.vout) {
-                    if (vout.scriptPubKey && vout.scriptPubKey.addresses) {
-                        for (let address of vout.scriptPubKey.addresses) {
-                            // console.log('scriptPubKey =6=>', vout.scriptPubKey)
-                            btcTx.vOuts.push({
-                                address: address,
-                                amount: new Bignumber(vout.value).div(PRECISION).toString()
-                            });
-                            fee = fee.minus(vout.value);
-                            if (this.addresses && this.addresses.includes(address)) {
-                                isRelative = true;
-                            }
                         }
                     }
+                    if (isRelative) {
+                        btcTx.fee = fee.div(PRECISION).toString();
+                        txs.push(btcTx);
+                        console.log('tx =7=>:', btcTx)
+                    }
                 }
-                if (isRelative) {
-                    btcTx.fee = fee.div(PRECISION).toString();
-                    txs.push(btcTx);
-                    console.log('tx =7=>:', btcTx)
+                if (txs.length > 0) {
+                    await this.provider?.onNewTransaction(txs);
+                    this.logger.log(`onNewTransaction(${txs.length}) event on BlockHeight(${this.blockCursor})...`);
                 }
-            }
-            if (txs.length > 0) {
-                await this.provider?.onNewTransaction(txs);
-                this.logger.log(`onNewTransaction(${txs.length}) event on BlockHeight(${this.blockCursor})...`);
-            }
+            } while (false);
+
+            await this.provider?.onNewBlock({ height: this.blockCursor });
+            this.logger.log(`onNewBlock(${this.blockCursor}) Event...`);
+
             return true;
         })()
-            .then((success: boolean) => success && this.blockCursor++)
-            .catch(error => this.logger.log(`syncTransactionSched error: ${error}`))
-            .finally(() => this.transactionSchedHandler = setTimeout(this.syncTransactionSched, BtcService.TRANSACTION_SCHED_INTERVAL));
+            .then((success: boolean) => {
+                success && this.blockCursor++;
+                this.logger.log(`syncTransactionSched(${success}), cursor(${this.blockCursor})`);
+                this.transactionSchedHandler = setTimeout(
+                    this.syncTransactionSched,
+                    BtcService.TRANSACTION_SCHED_INTERVAL
+                );
+            }, (error) => {
+                this.transactionSchedHandler = setTimeout(
+                    this.syncTransactionSched,
+                    BtcService.TRANSACTION_SCHED_INTERVAL
+                );
+                this.logger.log(`syncTransactionSched error: ${error}`);
+            });
     }
 
     private async monitor() {
