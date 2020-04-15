@@ -139,18 +139,17 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
                 }
 
                 let blockhash = await client.command('getblockhash', this.blockCursor);
-                let block = await client.command('getblock', blockhash);
+                let block = await client.command('getblock', blockhash, 2);
                 let txs = [];
-                for (let txid of block.tx) {
-                    let tx = await client.command('getrawtransaction', txid, true)
+                for (let tx of block.tx) {
+                    // let tx = await client.command('getrawtransaction', txid, true)
                     // console.log('txId =3=>', tx, JSON.stringify(tx))
-
                     let btcTx: BitcoinTransaction = {
                         type: 'bitcoin',
                         sub: 'btc',
                         txId: tx.txid,
                         blockHeight: block.height,
-                        blockTime: tx.blocktime,
+                        blockTime: block.time,
                         fee: '',
                         vIns: [],
                         vOuts: []
