@@ -29,7 +29,6 @@ const PRECISION = 1e-8;
 
 @Injectable()
 export class OmniUsdtService extends IService implements OnModuleInit, OnModuleDestroy, OnApplicationBootstrap {
-    private interval = null;
     private lastHeight = -1;
     private logger: Logger = new Logger('OmniUsdtServie', true);
     // 游标
@@ -56,11 +55,6 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
     }
 
     async onModuleInit(): Promise<void> {
-        // await this.monitor();
-        // this.interval = setInterval(() => {
-        //     this.monitor();
-        // }, 60000);
-
         try {
             const fileContent = fs.readFileSync(this.backupFilePath, { encoding: 'utf8' });
             const unmarshalDat = JSON.parse(fileContent);
@@ -72,10 +66,6 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
     }
 
     async onModuleDestroy(): Promise<void> {
-        // if (this.interval !== null) {
-        //     clearInterval(this.interval)
-        // }
-
         if (this.blockSchedHandler) {
             clearTimeout(this.blockSchedHandler);
             this.blockSchedHandler = null;
@@ -134,7 +124,7 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
     private syncTransactionSched() {
         this.transactionSchedHandler = null;
         (async () => {
-            if (this.blockCursor > this.blockLatestHeight) {
+            if (this.blockLatestHeight != -1 && this.blockCursor > this.blockLatestHeight) {
                 // 不用递增blockCursor
                 return false;
             }
@@ -197,66 +187,6 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
 
     }
 
-    private async monitor() {
-        try {
-            this.logger.log('start monitor');
-            // console.log('addresses =0=>', this.addresses)
-            let chainInfo = await client.command('omni_getinfo');
-            // console.log('chainInfo =1=>', chainInfo)
-            let lastBlockHeght = chainInfo.block;
-            this.logger.log(`lastestBlockHeight:${lastBlockHeght}, cursorBlockHeight:${this.lastHeight}`);
-            // console.log('lastBlockHash =1=>', lastBlockHash)
-            if (this.lastHeight >= lastBlockHeght) {// 没有更新区块 
-                return
-            }
-
-            if (this.lastHeight === -1) {//重新启动时从最新区块开始更新
-                this.lastHeight = lastBlockHeght - 1;
-            }
-
-            let offset = lastBlockHeght - this.lastHeight;//一分钟可能产生多个区块
-            for (let i = 0; i < offset; i++) {
-                this.lastHeight += 1;
-                await this.provider?.onNewBlock({ height: this.lastHeight });
-
-                if (!this.addresses || this.addresses.length == 0) {// 没有需要监听的地址
-                    continue;
-                }
-                let transactions = await client.command('omni_listblocktransactions', this.lastHeight);
-                // console.log('omni_listblocktransactions =2=>', transactions)
-
-                let txs = [];
-                for (let txid of transactions) {
-                    let tx = await client.command('omni_gettransaction', txid);
-                    // console.log('txId =3=>', tx, JSON.stringify(tx))
-
-                    if (this.addresses.includes(tx.sendingaddress) || this.addresses.includes(tx.referenceaddress)) {
-                        let omniTx: OmniUsdtTransactin = {
-                            type: 'bitcoin',
-                            sub: 'omni_usdt',
-                            txId: txid,
-                            blockHeight: this.lastHeight,
-                            blockTime: tx.blocktime,
-                            propertyId: tx.propertyid,
-                            version: tx.version,
-                            typeInt: tx.type_int,
-                            sending: tx.sendingaddress,
-                            reference: tx.referenceaddress,
-                            amount: new Bignumber(tx.amount).div(PRECISION).toString(),
-                            fee: new Bignumber(tx.fee).div(PRECISION).toString()
-                        };
-                        txs.push(omniTx);
-                    }
-                }
-                if (txs.length > 0) {
-                    await this.provider?.onNewTransaction(txs);
-                }
-            }
-        } catch (error) {
-            console.log(error)
-        }
-    }
-
     async onNewAccounts(addresses: string[]): Promise<void> {
         await super.onNewAccounts(addresses);
 
@@ -300,24 +230,6 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
         return result;
     }
 
-    // async getTransactionInfo(txId: string): Promise<TransactionQueryResultDef> {
-    //     const result: TransactionQueryResultDef = { blocked: false, blockHeight: -1 };
-    //     try {
-    //         let tx = await client.command('omni_gettransaction', txId);
-    //         // 只要能获取到交易信息，说明交易已经被打包
-    //         // 在获取交易信息的时候，不需要处理确认数
-    //         result.blocked = true;
-    //         result.blockHeight = tx.block;
-    //         // if (tx.confirmations > 0) {
-    //         // result.blocked = true;
-    //         // result.blockHeight = tx.block;
-    //         // }
-    //     } catch (error) {
-    //         throw error;
-    //     }
-    //     return result;
-    // }
-
     async getFeeRange(): Promise<FeeRangeDef> {
         return { min: '200000000', max: '500000000', default: '200000000' };
     }
@@ -331,33 +243,13 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
             }
 
             let utxos = [];
-            let utxos2 = [];
             for (let unspent of unspents) {
-                let txHex = await client.command('getrawtransaction', unspent.txid);
                 utxos.push({
-                    txid: unspent.txid,
-                    vout: unspent.vout,
-                    value: new Bignumber(unspent.amount).div(PRECISION).toNumber(),
-                    nonWitnessUtxo: Buffer.from(txHex, 'hex')
-                });
-
-                utxos2.push({
                     txid: unspent.txid,
                     vout: unspent.vout,
                     value: unspent.amount,
                     scriptPubKey: unspent.scriptPubKey,
                 });
-            }
-            let targets = [{
-                address: data.address,
-                value: new Bignumber(data.amount).toNumber()
-            }];
-
-            let feeRate = await this.getFeeRate(data.feePriority);
-            let { inputs, outputs, fee } = coinSelect(utxos, targets, feeRate);
-            console.log("coinSelect result ==>", inputs, outputs, fee)
-            if (!inputs || !outputs) {
-                throw new Error('tansfer data error');
             }
 
             let amount = new Bignumber(data.amount).times(PRECISION).toFixed(8);
@@ -366,7 +258,7 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
             let payload = await client.command('omni_createpayload_simplesend', PROPERTY, amount);
             // console.log('omni_createpayload_simplesend ==>', payload);
 
-            let txhash = await client.command('createrawtransaction', utxos2, {});
+            let txhash = await client.command('createrawtransaction', utxos, {});
             // console.log('createrawtransaction ==>', txhash)
 
             let rawtx = await client.command('omni_createrawtx_opreturn', txhash, payload);
@@ -375,8 +267,10 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
             let rawtx2 = await client.command('omni_createrawtx_reference', rawtx, data.address);
             // console.log('omni_createrawtx_reference ==>', rawtx2);
 
+            let feeRate = await this.getFeeRate(data.feePriority);
+            let fee = (utxos.length * 148 + 3 * 34 + 10) * feeRate;
             let fee0 = new Bignumber(fee).times(PRECISION).toNumber();
-            let rawtx3 = await client.command('omni_createrawtx_change', rawtx2, utxos2, data.keyPair.address, fee0);
+            let rawtx3 = await client.command('omni_createrawtx_change', rawtx2, utxos, data.keyPair.address, fee0);
             // console.log('omni_createrawtx_change ==>', rawtx3);
 
             let txsign = await client.command('signrawtransactionwithkey', rawtx3, [data.keyPair.wif]);
