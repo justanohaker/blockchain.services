@@ -26,6 +26,7 @@ const client = new Client({
 });
 const PROPERTY = AppConfig.mainnet ? 31 : 2; //propertyid  1:OMNI,2:TOMNI,31:USDT
 const PRECISION = 1e-8;
+const BTCNetwork = AppConfig.mainnet ? networks.bitcoin : networks.testnet;
 
 @Injectable()
 export class OmniUsdtService extends IService implements OnModuleInit, OnModuleDestroy, OnApplicationBootstrap {
@@ -340,7 +341,7 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
                 throw new Error('tansfer data error');
             }
 
-            let psbt = new Psbt({ network: networks.testnet });
+            let psbt = new Psbt({ network: BTCNetwork });
             inputs.forEach(input =>
                 psbt.addInput({
                     hash: input.txid,
@@ -358,7 +359,7 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
                 });
             });
             const ecpair = ECPair.fromPrivateKey(Buffer.from(data.payedKeyPair.privateKey, 'hex'),
-                { network: AppConfig.mainnet ? networks.bitcoin : networks.testnet });
+                { network: BTCNetwork });
             psbt.signAllInputs(ecpair);
             psbt.validateSignaturesOfAllInputs();
             psbt.finalizeAllInputs();

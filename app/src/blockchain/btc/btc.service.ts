@@ -28,6 +28,8 @@ const client = new Client({
 });
 const PRECISION = 1e-8;
 
+const BTCNetwork = AppConfig.mainnet ? networks.bitcoin : networks.testnet;
+
 @Injectable()
 export class BtcService extends IService implements OnModuleInit, OnModuleDestroy, OnApplicationBootstrap {
     private lastHeight = -1;
@@ -284,7 +286,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
                 throw new Error('tansfer data error');
             }
 
-            let psbt = new Psbt({ network: networks.testnet });
+            let psbt = new Psbt({ network: BTCNetwork });
             inputs.forEach(input =>
                 psbt.addInput({
                     hash: input.txid,
@@ -302,7 +304,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
                 });
             });
             const ecpair = ECPair.fromPrivateKey(Buffer.from(data.keyPair.privateKey, 'hex'),
-                { network: AppConfig.mainnet ? networks.bitcoin : networks.testnet });
+                { network: BTCNetwork });
             psbt.signAllInputs(ecpair);
             psbt.validateSignaturesOfAllInputs();
             psbt.finalizeAllInputs();
@@ -349,7 +351,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
             }
 
             // 组织psbt数据
-            let psbt = new Psbt({ network: networks.testnet });
+            let psbt = new Psbt({ network: BTCNetwork });
             let fee = new Bignumber(data.fee);
             let total = new Bignumber(0);
             let amount = new Bignumber(data.amount);
@@ -386,7 +388,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
 
             // 签名psbt
             const ecpair = ECPair.fromPrivateKey(Buffer.from(data.keyPair.privateKey, 'hex'),
-                { network: AppConfig.mainnet ? networks.bitcoin : networks.testnet });
+                { network: BTCNetwork });
             psbt.signAllInputs(ecpair);
             psbt.validateSignaturesOfAllInputs();
             psbt.finalizeAllInputs();

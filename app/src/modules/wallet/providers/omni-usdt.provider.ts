@@ -77,17 +77,7 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
     async onModuleInit() {
         this.schedHandler = setTimeout(this.transferScheduler, SchedTimeout);
 
-        try {
-            const storedFileData = fs.readFileSync(this.tasksFilePath, { encoding: 'utf8' });
-            const tasksConv = new Map();
-            const tasksRaw = JSON.parse(storedFileData);
-            this.Logger.log(`onModuleInit[tasks]:`, JSON.stringify(tasksRaw));
-            for (const task of tasksRaw) {
-                if (task.length < 2) { continue; }
-                tasksConv.set(task[0], task[1]);
-            }
-            this.tasks = tasksConv;
-        } catch (error) { }
+        await this.loadFromBackup();
     }
 
     async onModuleDestroy() {
@@ -96,15 +86,7 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
             this.schedHandler = null;
         }
 
-        try {
-            const tasksConv = [];
-            for (const entry of this.tasks) {
-                tasksConv.push(entry);
-            }
-            const tasksStr = JSON.stringify(tasksConv);
-            fs.writeFileSync(this.tasksFilePath, tasksStr, { encoding: 'utf8' });
-            this.Logger.log(`backup omni_usdt.tasks.dat:${tasksStr}`);
-        } catch (error) { }
+        await this.storeToBackup();
     }
 
     async onApplicationBootstrap() {
@@ -249,6 +231,7 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
             preTxConfirmed: -1,
         });
 
+        await this.storeToBackup();
     }
 
     private transferScheduler() {
@@ -296,6 +279,7 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
                     this.Logger.log(`transferSched[prepareTransferConfirmed]-${JSON.stringify(sender)},${JSON.stringify(task)}`);
                     await this.postTransfer(payAccount, sender, preTxId, task);
                     tasks.splice(0, 1);
+                    await this.storeToBackup();
                     continue;
                 }
             }
@@ -459,5 +443,31 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
                 // task.preTxConfirmed++;
             }
         }
+    }
+
+    async loadFromBackup() {
+        try {
+            const storedFileData = fs.readFileSync(this.tasksFilePath, { encoding: 'utf8' });
+            const tasksConv = new Map();
+            const tasksRaw = JSON.parse(storedFileData);
+            this.Logger.log(`onModuleInit[tasks]:`, JSON.stringify(tasksRaw));
+            for (const task of tasksRaw) {
+                if (task.length < 2) { continue; }
+                tasksConv.set(task[0], task[1]);
+            }
+            this.tasks = tasksConv;
+        } catch (error) { }
+    }
+
+    async storeToBackup() {
+        try {
+            const tasksConv = [];
+            for (const entry of this.tasks) {
+                tasksConv.push(entry);
+            }
+            const tasksStr = JSON.stringify(tasksConv);
+            fs.writeFileSync(this.tasksFilePath, tasksStr, { encoding: 'utf8' });
+            this.Logger.log(`backup omni_usdt.tasks.dat:${tasksStr}`);
+        } catch (error) { }
     }
 }
