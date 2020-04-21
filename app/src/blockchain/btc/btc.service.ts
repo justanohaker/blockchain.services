@@ -117,22 +117,21 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
 
     private syncTransactionSched() {
         this.transactionSchedHandler = null;
+        if (this.blockLatestHeight <= 0 || this.blockCursor > this.blockLatestHeight) {
+            return false;
+        }
         (async () => {
-            // this.logger.log(`start syncTransactionSched(${this.blockCursor},${this.blockLatestHeight})`);
-            if (this.blockCursor > this.blockLatestHeight) {
-                return false;
-            }
-
             do {
                 if (!this.addresses || this.addresses.length <= 0) {
                     break;
                 }
 
+                this.logger.log(`start syncTransactionSched(${this.blockCursor},${this.blockLatestHeight})`);
                 let blockhash = await client.command('getblockhash', this.blockCursor);
-                let block = await client.command('getblock', blockhash, 2);
+                let block = await client.command('getblock', blockhash, 1);
                 let txs = [];
-                for (let tx of block.tx) {
-                    // let tx = await client.command('getrawtransaction', txid, true)
+                for (let txid of block.tx) {
+                    let tx = await client.command('getrawtransaction', txid, true)
                     // console.log('txId =3=>', tx, JSON.stringify(tx))
                     let btcTx: BitcoinTransaction = {
                         type: 'bitcoin',
@@ -182,7 +181,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
                     if (isRelative) {
                         btcTx.fee = fee.div(PRECISION).toString();
                         txs.push(btcTx);
-                        console.log('tx =7=>:', btcTx)
+                        // console.log('tx =7=>:', btcTx)
                     }
                 }
                 if (txs.length > 0) {
@@ -198,7 +197,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
         })()
             .then((success: boolean) => {
                 success && this.blockCursor++;
-                // this.logger.log(`syncTransactionSched(${success}), cursor(${this.blockCursor})`);
+                this.logger.log(`syncTransactionSched(${success}), cursor(${this.blockCursor})`);
                 this.transactionSchedHandler = setTimeout(
                     this.syncTransactionSched,
                     BtcService.TRANSACTION_SCHED_INTERVAL
