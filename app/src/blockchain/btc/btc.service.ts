@@ -51,14 +51,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
     }
 
     async onModuleInit() {
-        try {
-            const fileContent = fs.readFileSync(this.backupFilePath, { encoding: 'utf8' });
-            const unmarshalDat = JSON.parse(fileContent);
-            if (unmarshalDat.blockCursor) {
-                this.blockCursor = unmarshalDat.blockCursor;
-                this.logger.log(`load blockCursor(${this.blockCursor})`);
-            }
-        } catch (error) { }
+        await this.loadFromBackup();
     }
 
     async onModuleDestroy() {
@@ -71,13 +64,7 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
             this.transactionSchedHandler = null;
         }
 
-        const backupData = JSON.stringify({
-            blockCursor: this.blockCursor
-        });
-        try {
-            fs.writeFileSync(this.backupFilePath, backupData, { encoding: 'utf8' });
-            this.logger.log(`backup btc.service.dat:${backupData}`);
-        } catch (error) { }
+        await this.storeToBackup();
     }
 
     async onApplicationBootstrap() {
@@ -200,7 +187,10 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
             return true;
         })()
             .then((success: boolean) => {
-                success && this.blockCursor++;
+                if (success) {
+                    this.blockCursor++;
+                    this.storeToBackup();
+                }
                 this.logger.log(`syncTransactionSched(${success}), cursor(${this.blockCursor})`);
                 this.transactionSchedHandler = setTimeout(
                     this.syncTransactionSched,
@@ -417,4 +407,24 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
         return { min: '40000', max: '1000000', default: '40000' };
     }
 
+    async loadFromBackup() {
+        try {
+            const fileContent = fs.readFileSync(this.backupFilePath, { encoding: 'utf8' });
+            const unmarshalDat = JSON.parse(fileContent);
+            if (unmarshalDat.blockCursor) {
+                this.blockCursor = unmarshalDat.blockCursor;
+                this.logger.log(`load blockCursor(${this.blockCursor})`);
+            }
+        } catch (error) { }
+    }
+
+    async storeToBackup() {
+        const backupData = JSON.stringify({
+            blockCursor: this.blockCursor
+        });
+        try {
+            fs.writeFileSync(this.backupFilePath, backupData, { encoding: 'utf8' });
+            this.logger.log(`backup btc.service.dat:${backupData}`);
+        } catch (error) { }
+    }
 }
