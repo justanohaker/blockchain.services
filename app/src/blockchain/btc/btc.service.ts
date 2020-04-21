@@ -118,7 +118,11 @@ export class BtcService extends IService implements OnModuleInit, OnModuleDestro
     private syncTransactionSched() {
         this.transactionSchedHandler = null;
         if (this.blockLatestHeight <= 0 || this.blockCursor > this.blockLatestHeight) {
-            return false;
+            this.transactionSchedHandler = setTimeout(
+                this.syncTransactionSched,
+                BtcService.TRANSACTION_SCHED_INTERVAL
+            );
+            return;
         }
         (async () => {
             do {
