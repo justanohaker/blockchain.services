@@ -237,6 +237,7 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
     private transferScheduler() {
         this.schedHandler = null;
         (async () => {
+            let needStore: boolean = false;
             for (const key of this.tasks.keys()) {
                 const tasks = this.tasks.get(key);
                 if (tasks.length <= 0) {
@@ -271,6 +272,7 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
                         if (txId) {
                             task.preTxId = txId;
                             task.preTxConfirmed = 0;
+                            needStore = true;
                         }
                     } catch (error) { }
                     continue;
@@ -279,9 +281,13 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
                     this.Logger.log(`transferSched[prepareTransferConfirmed]-${JSON.stringify(sender)},${JSON.stringify(task)}`);
                     await this.postTransfer(payAccount, sender, preTxId, task);
                     tasks.splice(0, 1);
-                    await this.storeToBackup();
+                    needStore = true;
                     continue;
                 }
+            }
+
+            if (needStore) {
+                await this.storeToBackup();
             }
         })()
             .catch((error) => { /* // TODO */ })
