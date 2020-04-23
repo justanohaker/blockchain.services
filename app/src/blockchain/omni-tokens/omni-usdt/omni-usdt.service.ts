@@ -125,8 +125,10 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
     private syncTransactionSched() {
         this.transactionSchedHandler = null;
         (async () => {
-            if (this.blockLatestHeight != -1 && this.blockCursor > this.blockLatestHeight) {
-                // 不用递增blockCursor
+            if (this.blockLatestHeight === -1) {//未获取到最新高度
+                return false;
+            }
+            if (this.blockCursor > this.blockLatestHeight) {// 游标已经到最新，不用递增blockCursor
                 return false;
             }
 
@@ -315,6 +317,13 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
     // 预付阶段，代付地址向发送地址转固定金额（最小转账金额546）的btc,给发送地址做手续费用
     async prepareTransfer(data: PrepareTransferDef): Promise<TransferResp> {
         try {
+            let balance = await client.command('omni_getbalance', data.keyPair.address, PROPERTY);
+            let amount = new Bignumber(data.amount).times(PRECISION);
+            let usdtFee = new Bignumber(data.fee).times(PRECISION);
+            if (new Bignumber(balance.balance).lt(amount.plus(usdtFee))) {
+                throw new Error('not enough balance');
+            }
+
             let unspents = await client.command('listunspent', 0, 99999999, [data.payedKeyPair.address]);
             console.log('listunspent ==>', unspents)
             if (unspents.length === 0) {
@@ -379,10 +388,9 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
     async transferWithFee(data: TransferWithFeeDef): Promise<TransferResp> {
         try {
             let balance = await client.command('omni_getbalance', data.keyPair.address, PROPERTY);
-            // console.log('omni_getbalance ==>', balance)
-            let amount = new Bignumber(data.amount).times(PRECISION).toFixed(8);
-            // console.log('amount ==>', amount);
-            if (balance.balance < amount) {
+            let amount = new Bignumber(data.amount).times(PRECISION);
+            let usdtFee = new Bignumber(data.fee).times(PRECISION);
+            if (new Bignumber(balance.balance).lt(amount.plus(usdtFee))) {
                 throw new Error('not enough balance');
             }
 
@@ -423,7 +431,7 @@ export class OmniUsdtService extends IService implements OnModuleInit, OnModuleD
                 });
             }
 
-            let payload = await client.command('omni_createpayload_simplesend', PROPERTY, amount);
+            let payload = await client.command('omni_createpayload_simplesend', PROPERTY, amount.toFixed(8));
             // console.log('omni_createpayload_simplesend ==>', payload);
 
             let txhash = await client.command('createrawtransaction', utxos, {});
