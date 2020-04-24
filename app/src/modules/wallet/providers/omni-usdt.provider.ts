@@ -245,7 +245,7 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
                 }
 
                 const task = tasks[0];
-                const { clientId, accountId, amount, fee, preTxId, preTxConfirmed, } = task;
+                const { clientId, accountId, amount, fee, preTxId, preTxConfirmed, businessId, callbackURI } = task;
                 const sender = await this.retrieveAccount(clientId, accountId);
                 const payAccount = await this.ClientPayedRepo.findOne({ clientId, token: this.Token });
                 preTxId == null && this.Logger.log(`transferSched[start]-${JSON.stringify(task)},${sender.address}`);
@@ -274,7 +274,22 @@ export class OmniUsdtProvider extends Provider implements OnModuleInit, OnModule
                             task.preTxConfirmed = 0;
                             needStore = true;
                         }
-                    } catch (error) { }
+                    } catch (error) {
+                        tasks.splice(0, 1);
+                        needStore = true;
+                        const notification = {
+                            status: false,
+                            accountId,
+                            address: sender.address,
+                            businessId,
+                            error: `${error}`,
+                        };
+                        this.pushNotificationWithURI(
+                            callbackURI,
+                            PushEventType.TransactionCreated,
+                            notification
+                        );
+                    }
                     continue;
                 }
                 if (preTxId && preTxConfirmed >= MaxConfirmed) {
