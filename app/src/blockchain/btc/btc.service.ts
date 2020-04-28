@@ -47,6 +47,8 @@ interface MonitorProgress {
     blockHeight: number;
     numberOfTransactions: number;
     numberOfTransactionsHandled: number;
+    currentTxId: string;
+    numberInputOfCurrentTx: number;
 }
 
 @Injectable()
@@ -174,8 +176,11 @@ export class BtcService extends IService
                     blockHeight: this.blockCursor,
                     numberOfTransactions: block.tx.length,
                     numberOfTransactionsHandled: 0,
+                    currentTxId: null,
+                    numberInputOfCurrentTx: 0,
                 };
                 for (let txid of block.tx) {
+                    this.monitorProgress.currentTxId = txid;
                     let tx = await client.command(
                         'getrawtransaction',
                         txid,
@@ -194,6 +199,8 @@ export class BtcService extends IService
                     };
                     let isRelative = false;
                     let fee = new Bignumber(0);
+                    this.monitorProgress.numberInputOfCurrentTx =
+                        tx?.vin?.length;
                     for (let vin of tx.vin) {
                         if (vin.txid) {
                             let txVin = await client.command(
