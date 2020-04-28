@@ -203,6 +203,7 @@ export class BtcService extends IService
                     let fee = new Bignumber(0);
                     this.monitorProgress.numberInputOfCurrentTx =
                         tx?.vin?.length;
+                    this.monitorProgress.currentInputIndex = 0;
                     for (let vin of tx.vin) {
                         this.monitorProgress.currentInputIndex++;
                         if (vin.txid) {
