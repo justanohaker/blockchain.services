@@ -49,6 +49,7 @@ interface MonitorProgress {
     numberOfTransactionsHandled: number;
     currentTxId: string;
     numberInputOfCurrentTx: number;
+    currentInputIndex: number;
 }
 
 @Injectable()
@@ -178,6 +179,7 @@ export class BtcService extends IService
                     numberOfTransactionsHandled: 0,
                     currentTxId: null,
                     numberInputOfCurrentTx: 0,
+                    currentInputIndex: 0,
                 };
                 for (let txid of block.tx) {
                     this.monitorProgress.currentTxId = txid;
@@ -202,6 +204,7 @@ export class BtcService extends IService
                     this.monitorProgress.numberInputOfCurrentTx =
                         tx?.vin?.length;
                     for (let vin of tx.vin) {
+                        this.monitorProgress.currentInputIndex++;
                         if (vin.txid) {
                             let txVin = await client.command(
                                 'getrawtransaction',
